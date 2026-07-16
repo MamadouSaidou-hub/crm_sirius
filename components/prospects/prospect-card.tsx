@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { MapPin, Phone } from "lucide-react";
-import type { Prospect } from "@/lib/types";
-import { getUserById } from "@/lib/mock-data";
+import type { ProspectListItem } from "@/lib/data/prospects";
 import { Card, CardContent } from "@/components/ui/card";
 import { StageBadge } from "@/components/shared/stage-badge";
 import { ProductBadges } from "@/components/shared/product-badges";
@@ -12,8 +11,7 @@ import { formatFCFA } from "@/lib/utils";
 import { relativeDate } from "@/lib/date";
 
 /** Mobile/tablet representation of a prospect row. */
-export function ProspectCard({ prospect }: { prospect: Prospect }) {
-  const assignee = getUserById(prospect.assignedTo);
+export function ProspectCard({ prospect }: { prospect: ProspectListItem }) {
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
@@ -50,7 +48,7 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{assignee?.name ?? "Non assigné"}</span>
+          <span>{prospect.assigneeName}</span>
           <span>Activité {relativeDate(prospect.lastActivityAt)}</span>
         </div>
       </CardContent>

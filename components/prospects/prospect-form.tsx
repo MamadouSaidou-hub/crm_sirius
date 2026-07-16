@@ -1,16 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import type { ProductType, Prospect } from "@/lib/types";
+import type { ProductType, Prospect, User } from "@/lib/types";
 import { SENEGAL_CITIES } from "@/lib/types";
 import { PRODUCTS, PRODUCT_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
-import { assignableCommercials } from "@/lib/access";
-import { getUserById } from "@/lib/mock-data";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
+import { createProspect, updateProspect } from "@/lib/data/prospects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,8 +59,16 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
   const router = useRouter();
   const { user } = useMockUser();
   const isEdit = Boolean(prospect);
-  const commercials = assignableCommercials(user);
   const lockedAssignee = user.role === "commercial";
+  const [commercials, setCommercials] = useState<User[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (lockedAssignee) return;
+    fetchAssignableCommercials(user)
+      .then(setCommercials)
+      .catch(() => setCommercials([]));
+  }, [user, lockedAssignee]);
 
   const {
     register,
@@ -94,12 +103,35 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
     setValue("products", next, { shouldValidate: true });
   };
 
-  const onSubmit = (values: FormValues) => {
-    // Prototype: nothing is persisted; we simulate the save.
-    toast.success(isEdit ? "Prospect mis à jour" : "Prospect créé", {
-      description: `${values.name} a été enregistré (simulation).`,
-    });
-    router.push(prospect ? `/prospects/${prospect.id}` : "/prospects");
+  const onSubmit = async (values: FormValues) => {
+    setSubmitting(true);
+    const input = {
+      name: values.name,
+      phone: values.phone ?? "",
+      email: values.email ?? "",
+      cni: values.cni ?? "",
+      address: values.address ?? "",
+      city: values.city,
+      products: values.products,
+      estimatedPremium: Number(values.estimatedPremium),
+      assignedTo: values.assignedTo,
+      notes: values.notes ?? "",
+    };
+    try {
+      if (prospect) {
+        await updateProspect(prospect.id, input);
+        toast.success("Prospect mis à jour");
+        router.push(`/prospects/${prospect.id}`);
+      } else {
+        const id = await createProspect(input);
+        toast.success("Prospect créé");
+        router.push(`/prospects/${id}`);
+      }
+      router.refresh();
+    } catch {
+      toast.error("Enregistrement impossible. Vérifiez vos droits et réessayez.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -202,7 +234,7 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
             {lockedAssignee ? (
               <Input
                 readOnly
-                value={getUserById(user.id)?.name ?? user.name}
+                value={user.name}
                 className="cursor-not-allowed opacity-80"
               />
             ) : (
@@ -240,10 +272,15 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="ghost" onClick={() => router.back()}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => router.back()}
+          disabled={submitting}
+        >
           Annuler
         </Button>
-        <Button type="submit">
+        <Button type="submit" disabled={submitting}>
           {isEdit ? "Enregistrer les modifications" : "Créer le prospect"}
         </Button>
       </div>

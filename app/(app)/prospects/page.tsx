@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Plus } from "lucide-react";
+import { Download, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import type { User } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
+import { canExport } from "@/lib/access";
 import {
-  assignableCommercials,
-  canExport,
-  scopeProspects,
-} from "@/lib/access";
-import { prospects as allProspects } from "@/lib/mock-data";
+  fetchProspects,
+  type ProspectListItem,
+} from "@/lib/data/prospects";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { ProspectsTable } from "@/components/prospects/prospects-table";
@@ -21,7 +22,7 @@ import {
   type ProspectFilters,
 } from "@/components/prospects/prospects-filters";
 
-function matches(filters: ProspectFilters, p: (typeof allProspects)[number]) {
+function matches(filters: ProspectFilters, p: ProspectListItem) {
   if (filters.search) {
     const q = filters.search.toLowerCase();
     const haystack = `${p.name} ${p.phone} ${p.email}`.toLowerCase();
@@ -45,24 +46,45 @@ function matches(filters: ProspectFilters, p: (typeof allProspects)[number]) {
 export default function ProspectsPage() {
   const { user } = useMockUser();
   const [filters, setFilters] = useState<ProspectFilters>(EMPTY_FILTERS);
+  const [prospects, setProspects] = useState<ProspectListItem[] | null>(null);
+  const [commercials, setCommercials] = useState<User[]>([]);
 
-  const commercials = useMemo(() => assignableCommercials(user), [user]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchProspects(), fetchAssignableCommercials(user)])
+      .then(([ps, cs]) => {
+        if (!active) return;
+        setProspects(ps);
+        setCommercials(cs);
+      })
+      .catch(() => {
+        if (!active) return;
+        setProspects([]);
+        toast.error("Erreur de chargement des prospects.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const showCommercialFilter = user.role !== "commercial";
 
   const filtered = useMemo(() => {
-    const scoped = scopeProspects(user, allProspects);
-    return scoped
+    if (!prospects) return [];
+    return prospects
       .filter((p) => matches(filters, p))
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
-  }, [user, filters]);
+  }, [prospects, filters]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Prospects"
-        description={`${filtered.length} prospect${
-          filtered.length > 1 ? "s" : ""
-        } visible${filtered.length > 1 ? "s" : ""}`}
+        description={
+          prospects === null
+            ? "Chargement…"
+            : `${filtered.length} prospect${filtered.length > 1 ? "s" : ""} visible${filtered.length > 1 ? "s" : ""}`
+        }
         actions={
           <>
             {canExport(user) && (
@@ -95,21 +117,30 @@ export default function ProspectsPage() {
         showCommercialFilter={showCommercialFilter}
       />
 
-      {/* Desktop: table */}
-      <div className="hidden lg:block">
-        <ProspectsTable data={filtered} />
-      </div>
+      {prospects === null ? (
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Chargement des prospects…
+        </div>
+      ) : (
+        <>
+          {/* Desktop: table */}
+          <div className="hidden lg:block">
+            <ProspectsTable data={filtered} />
+          </div>
 
-      {/* Mobile / tablet: stacked cards */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
-        {filtered.length === 0 ? (
-          <p className="col-span-full rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
-            Aucun prospect ne correspond aux filtres.
-          </p>
-        ) : (
-          filtered.map((p) => <ProspectCard key={p.id} prospect={p} />)
-        )}
-      </div>
+          {/* Mobile / tablet: stacked cards */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
+            {filtered.length === 0 ? (
+              <p className="col-span-full rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+                Aucun prospect ne correspond aux filtres.
+              </p>
+            ) : (
+              filtered.map((p) => <ProspectCard key={p.id} prospect={p} />)
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

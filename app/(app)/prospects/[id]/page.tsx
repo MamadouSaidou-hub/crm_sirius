@@ -1,13 +1,15 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { toast } from "sonner";
 import {
   Activity,
   Banknote,
   CalendarClock,
   Calculator,
+  Loader2,
   Mail,
   MapPin,
   MessagesSquare,
@@ -23,10 +25,14 @@ import type {
 } from "@/lib/types";
 import {
   getInteractionsForProspect,
-  getProspectById,
   getStageHistoryForProspect,
   getTasksForProspect,
 } from "@/lib/mock-data";
+import {
+  fetchProspect,
+  updateProspectStage,
+  type ProspectListItem,
+} from "@/lib/data/prospects";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,7 +44,6 @@ import { HistoryTab } from "@/components/prospects/detail/history-tab";
 import { ContractsTab } from "@/components/prospects/detail/contracts-tab";
 import { getContractsForProspect } from "@/lib/store/subscriptions";
 import { ProductBadges } from "@/components/shared/product-badges";
-import { getUserById } from "@/lib/mock-data";
 import { formatFCFA } from "@/lib/utils";
 import { daysSince, relativeDate } from "@/lib/date";
 
@@ -48,28 +53,52 @@ export default function ProspectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  // undefined = loading, null = not found
+  const [base, setBase] = useState<ProspectListItem | null | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    let active = true;
+    fetchProspect(id)
+      .then((p) => active && setBase(p))
+      .catch(() => active && setBase(null));
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (base === undefined) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+  if (base === null) notFound();
+
+  return <ProspectDetailView base={base} />;
+}
+
+function ProspectDetailView({ base }: { base: ProspectListItem }) {
+  const id = base.id;
   const { user } = useMockUser();
-  const base = getProspectById(id);
-  if (!base) notFound();
 
   const [stage, setStage] = useState<Stage>(base.stage);
   const [interactions, setInteractions] = useState<Interaction[]>(() =>
-    getInteractionsForProspect(id)
+    getInteractionsForProspect(id),
   );
   const [tasks, setTasks] = useState<Task[]>(() => getTasksForProspect(id));
   const [history, setHistory] = useState<StageHistoryEntry[]>(() =>
-    getStageHistoryForProspect(id)
+    getStageHistoryForProspect(id),
   );
   const [contracts] = useState<Contract[]>(() => getContractsForProspect(id));
   const [lostReason, setLostReason] = useState<string | undefined>(
-    base.lostReason
+    base.lostReason,
   );
 
-  const assignee = getUserById(base.assignedTo);
-
   const lastActivity = useMemo(() => {
-    const latest = interactions[0]?.createdAt ?? base.lastActivityAt;
-    return latest;
+    return interactions[0]?.createdAt ?? base.lastActivityAt;
   }, [interactions, base.lastActivityAt]);
 
   const handleStageChange = (next: Stage, reason?: string) => {
@@ -86,6 +115,9 @@ export default function ProspectDetailPage({
     ]);
     setStage(next);
     setLostReason(next === "lost" ? reason : undefined);
+    updateProspectStage(id, next, reason).catch(() =>
+      toast.error("Le changement de stage n'a pas pu être enregistré."),
+    );
   };
 
   return (
@@ -171,11 +203,9 @@ export default function ProspectDetailPage({
         </div>
       )}
 
-      {assignee && (
-        <p className="text-sm text-muted-foreground">
-          Assigné à <span className="text-foreground">{assignee.name}</span>
-        </p>
-      )}
+      <p className="text-sm text-muted-foreground">
+        Assigné à <span className="text-foreground">{base.assigneeName}</span>
+      </p>
 
       {/* Tabs */}
       <Tabs defaultValue="interactions">
@@ -199,8 +229,8 @@ export default function ProspectDetailPage({
             onAdd={(task) =>
               setTasks((prev) =>
                 [task, ...prev].sort((a, b) =>
-                  a.dueDate.localeCompare(b.dueDate)
-                )
+                  a.dueDate.localeCompare(b.dueDate),
+                ),
               )
             }
             onToggle={(taskId, done) =>
@@ -208,8 +238,8 @@ export default function ProspectDetailPage({
                 prev.map((t) =>
                   t.id === taskId
                     ? { ...t, status: done ? "done" : "pending" }
-                    : t
-                )
+                    : t,
+                ),
               )
             }
           />

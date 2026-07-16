@@ -12,8 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
-import type { Prospect } from "@/lib/types";
-import { getUserById } from "@/lib/mock-data";
+import type { ProspectListItem } from "@/lib/data/prospects";
 import {
   Table,
   TableBody,
@@ -31,11 +30,11 @@ import { relativeDate } from "@/lib/date";
 
 const PAGE_SIZE = 25;
 
-export function ProspectsTable({ data }: { data: Prospect[] }) {
+export function ProspectsTable({ data }: { data: ProspectListItem[] }) {
   const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const columns = useMemo<ColumnDef<Prospect>[]>(
+  const columns = useMemo<ColumnDef<ProspectListItem>[]>(
     () => [
       {
         accessorKey: "name",
@@ -71,7 +70,7 @@ export function ProspectsTable({ data }: { data: Prospect[] }) {
       {
         id: "assignedTo",
         header: "Assigné à",
-        accessorFn: (p) => getUserById(p.assignedTo)?.name ?? "",
+        accessorFn: (p) => p.assigneeName,
         cell: ({ getValue }) => (
           <span className="text-muted-foreground">{getValue<string>()}</span>
         ),
