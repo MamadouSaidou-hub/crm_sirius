@@ -16,23 +16,22 @@ import {
   Pencil,
   Phone,
 } from "lucide-react";
-import type {
-  Contract,
-  Interaction,
-  Stage,
-  StageHistoryEntry,
-  Task,
-} from "@/lib/types";
-import {
-  getInteractionsForProspect,
-  getStageHistoryForProspect,
-  getTasksForProspect,
-} from "@/lib/mock-data";
+import type { Contract, Stage, StageHistoryEntry } from "@/lib/types";
+import { getStageHistoryForProspect } from "@/lib/mock-data";
 import {
   fetchProspect,
   updateProspectStage,
   type ProspectListItem,
 } from "@/lib/data/prospects";
+import {
+  fetchInteractions,
+  type InteractionItem,
+} from "@/lib/data/interactions";
+import {
+  fetchTasksForProspect,
+  setTaskStatus,
+  type TaskWithRefs,
+} from "@/lib/data/tasks";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -85,10 +84,8 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
   const { user } = useMockUser();
 
   const [stage, setStage] = useState<Stage>(base.stage);
-  const [interactions, setInteractions] = useState<Interaction[]>(() =>
-    getInteractionsForProspect(id),
-  );
-  const [tasks, setTasks] = useState<Task[]>(() => getTasksForProspect(id));
+  const [interactions, setInteractions] = useState<InteractionItem[]>([]);
+  const [tasks, setTasks] = useState<TaskWithRefs[]>([]);
   const [history, setHistory] = useState<StageHistoryEntry[]>(() =>
     getStageHistoryForProspect(id),
   );
@@ -96,6 +93,29 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
   const [lostReason, setLostReason] = useState<string | undefined>(
     base.lostReason,
   );
+
+  useEffect(() => {
+    let active = true;
+    fetchInteractions(id)
+      .then((r) => active && setInteractions(r))
+      .catch(() => {});
+    fetchTasksForProspect(id)
+      .then((r) => active && setTasks(r))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  const handleToggleTask = (taskId: string, done: boolean) => {
+    const status = done ? "done" : "pending";
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
+    );
+    setTaskStatus(taskId, status).catch(() =>
+      toast.error("La tâche n'a pas pu être mise à jour."),
+    );
+  };
 
   const lastActivity = useMemo(() => {
     return interactions[0]?.createdAt ?? base.lastActivityAt;
@@ -233,15 +253,7 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
                 ),
               )
             }
-            onToggle={(taskId, done) =>
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.id === taskId
-                    ? { ...t, status: done ? "done" : "pending" }
-                    : t,
-                ),
-              )
-            }
+            onToggle={handleToggleTask}
           />
         </TabsContent>
         <TabsContent value="contracts">

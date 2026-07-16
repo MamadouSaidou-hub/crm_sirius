@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { Task, TaskType } from "@/lib/types";
+import type { TaskType, User } from "@/lib/types";
 import { TASK_TYPE_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
-import { assignableCommercials, scopeProspects } from "@/lib/access";
-import { prospects as allProspects } from "@/lib/mock-data";
+import { fetchProspects, type ProspectListItem } from "@/lib/data/prospects";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
+import { createTask, type TaskWithRefs } from "@/lib/data/tasks";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ function defaultDueDate(): string {
 }
 
 interface TaskDialogProps {
-  onAdd: (task: Task) => void;
+  onAdd: (task: TaskWithRefs) => void;
   /** Lock the linked prospect (used on the prospect detail page). */
   fixedProspectId?: string;
   trigger?: React.ReactNode;
@@ -55,10 +56,17 @@ export function TaskDialog({ onAdd, fixedProspectId, trigger }: TaskDialogProps)
   );
   const [assignedTo, setAssignedTo] = useState<string>(user.id);
   const [error, setError] = useState(false);
+  const [prospects, setProspects] = useState<ProspectListItem[]>([]);
+  const [commercials, setCommercials] = useState<User[]>([]);
 
-  const prospects = scopeProspects(user, allProspects);
-  const commercials = assignableCommercials(user);
   const canAssign = user.role !== "commercial";
+
+  useEffect(() => {
+    if (!open) return;
+    if (!fixedProspectId) fetchProspects().then(setProspects).catch(() => {});
+    if (canAssign)
+      fetchAssignableCommercials(user).then(setCommercials).catch(() => {});
+  }, [open, fixedProspectId, canAssign, user]);
 
   const reset = () => {
     setTitle("");
@@ -70,25 +78,27 @@ export function TaskDialog({ onAdd, fixedProspectId, trigger }: TaskDialogProps)
     setError(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (title.trim().length < 3) {
       setError(true);
       return;
     }
-    onAdd({
-      id: `t-new-${Date.now()}`,
-      title: title.trim(),
-      description: description.trim(),
-      type,
-      status: "pending",
-      dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
-      prospectId: prospectId === "none" ? null : prospectId,
-      assignedTo: canAssign ? assignedTo : user.id,
-      createdAt: new Date().toISOString(),
-    });
-    toast.success("Tâche créée");
-    reset();
-    setOpen(false);
+    try {
+      const created = await createTask({
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
+        prospectId: prospectId === "none" ? null : prospectId,
+        assignedTo: canAssign ? assignedTo : user.id,
+      });
+      onAdd(created);
+      toast.success("Tâche créée");
+      reset();
+      setOpen(false);
+    } catch {
+      toast.error("Création impossible. Vérifiez vos droits et réessayez.");
+    }
   };
 
   return (

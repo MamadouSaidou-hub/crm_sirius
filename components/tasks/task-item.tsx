@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { toast } from "sonner";
-import type { Task } from "@/lib/types";
 import { TASK_TYPE_LABELS } from "@/lib/constants";
-import { getProspectById, getUserById } from "@/lib/mock-data";
+import type { TaskWithRefs } from "@/lib/data/tasks";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { dueLabel, isOverdue } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 interface TaskItemProps {
-  task: Task;
+  task: TaskWithRefs;
   onToggle: (id: string, done: boolean) => void;
   /** Show the linked prospect name (hidden on the prospect detail page). */
   showProspect?: boolean;
@@ -25,8 +24,6 @@ export function TaskItem({
   showProspect = true,
   showAssignee = false,
 }: TaskItemProps) {
-  const prospect = task.prospectId ? getProspectById(task.prospectId) : null;
-  const assignee = getUserById(task.assignedTo);
   const done = task.status === "done";
   const cancelled = task.status === "cancelled";
   const overdue = task.status === "pending" && isOverdue(task.dueDate);
@@ -53,15 +50,15 @@ export function TaskItem({
           {task.title}
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          {showProspect && prospect && (
+          {showProspect && task.prospectId && task.prospectName && (
             <Link
-              href={`/prospects/${prospect.id}`}
+              href={`/prospects/${task.prospectId}`}
               className="text-sirius-teal hover:underline"
             >
-              {prospect.name}
+              {task.prospectName}
             </Link>
           )}
-          {showAssignee && assignee && <span>· {assignee.name}</span>}
+          {showAssignee && <span>· {task.assigneeName}</span>}
         </div>
       </div>
       <Badge variant="muted">{TASK_TYPE_LABELS[task.type]}</Badge>

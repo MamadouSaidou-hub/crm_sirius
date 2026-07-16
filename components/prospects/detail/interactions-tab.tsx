@@ -9,9 +9,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MessagesSquare } from "lucide-react";
-import type { Interaction, InteractionType } from "@/lib/types";
+import type { InteractionType } from "@/lib/types";
 import { INTERACTION_LABELS } from "@/lib/constants";
-import { getUserById } from "@/lib/mock-data";
+import type { InteractionItem } from "@/lib/data/interactions";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { AddInteractionDialog } from "@/components/prospects/detail/add-interaction-dialog";
@@ -27,8 +27,8 @@ const ICONS: Record<InteractionType, LucideIcon> = {
 
 interface InteractionsTabProps {
   prospectId: string;
-  interactions: Interaction[];
-  onAdd: (interaction: Interaction) => void;
+  interactions: InteractionItem[];
+  onAdd: (interaction: InteractionItem) => void;
 }
 
 export function InteractionsTab({
@@ -56,7 +56,6 @@ export function InteractionsTab({
         <ol className="relative space-y-5 border-l border-border pl-6">
           {interactions.map((it) => {
             const Icon = ICONS[it.type];
-            const author = getUserById(it.createdBy);
             return (
               <li key={it.id} className="relative">
                 <span className="absolute -left-[31px] flex h-6 w-6 items-center justify-center rounded-full border border-border bg-sirius-muted text-sirius-teal">
@@ -79,14 +78,14 @@ export function InteractionsTab({
                   <p className="mt-1 text-sm text-muted-foreground">
                     {it.summary}
                   </p>
-                  {author && (
+                  {it.authorRole && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                       <UserAvatar
-                        name={author.name}
-                        role={author.role}
+                        name={it.authorName}
+                        role={it.authorRole}
                         className="h-5 w-5 text-[9px]"
                       />
-                      {author.name}
+                      {it.authorName}
                     </div>
                   )}
                 </div>

@@ -1,15 +1,15 @@
 "use client";
 
 import { ListTodo } from "lucide-react";
-import type { Task } from "@/lib/types";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TaskItem } from "@/components/tasks/task-item";
 import { TaskDialog } from "@/components/tasks/task-dialog";
+import type { TaskWithRefs } from "@/lib/data/tasks";
 
 interface TasksTabProps {
   prospectId: string;
-  tasks: Task[];
-  onAdd: (task: Task) => void;
+  tasks: TaskWithRefs[];
+  onAdd: (task: TaskWithRefs) => void;
   onToggle: (id: string, done: boolean) => void;
 }
 

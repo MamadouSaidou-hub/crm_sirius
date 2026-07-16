@@ -3,9 +3,13 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { Interaction, InteractionType } from "@/lib/types";
+import type { InteractionType } from "@/lib/types";
 import { INTERACTION_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
+import {
+  createInteraction,
+  type InteractionItem,
+} from "@/lib/data/interactions";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -30,7 +34,7 @@ const TYPES: InteractionType[] = ["call", "visit", "note", "whatsapp", "sms"];
 
 interface AddInteractionDialogProps {
   prospectId: string;
-  onAdd: (interaction: Interaction) => void;
+  onAdd: (interaction: InteractionItem) => void;
 }
 
 export function AddInteractionDialog({
@@ -51,23 +55,26 @@ export function AddInteractionDialog({
     setError(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (summary.trim().length < 3) {
       setError(true);
       return;
     }
-    onAdd({
-      id: `i-new-${Date.now()}`,
-      prospectId,
-      type,
-      summary: summary.trim(),
-      durationMin: duration ? Number(duration) : undefined,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
-    });
-    toast.success("Interaction ajoutée");
-    reset();
-    setOpen(false);
+    try {
+      const created = await createInteraction({
+        prospectId,
+        type,
+        summary: summary.trim(),
+        durationMin: duration ? Number(duration) : undefined,
+        createdBy: user.id,
+      });
+      onAdd(created);
+      toast.success("Interaction ajoutée");
+      reset();
+      setOpen(false);
+    } catch {
+      toast.error("Ajout impossible. Réessayez.");
+    }
   };
 
   return (

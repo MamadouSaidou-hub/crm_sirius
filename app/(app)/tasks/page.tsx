@@ -1,12 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isPast, isToday, isWithinInterval, startOfDay } from "date-fns";
-import { AlertTriangle, CalendarCheck, CalendarDays } from "lucide-react";
-import type { Task } from "@/lib/types";
+import {
+  AlertTriangle,
+  CalendarCheck,
+  CalendarDays,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
+import type { User } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
-import { assignableCommercials, scopeTasks } from "@/lib/access";
-import { tasks as allTasks } from "@/lib/mock-data";
+import {
+  fetchTasks,
+  setTaskStatus,
+  type TaskWithRefs,
+} from "@/lib/data/tasks";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -24,49 +34,57 @@ import { cn } from "@/lib/utils";
 
 export default function TasksPage() {
   const { user } = useMockUser();
-  const commercials = useMemo(() => assignableCommercials(user), [user]);
   const canFilter = user.role !== "commercial";
 
   const [filter, setFilter] = useState<string>("all");
-  const [tasks, setTasks] = useState<Task[]>(() =>
-    scopeTasks(user, allTasks).map((t) => ({ ...t }))
-  );
+  const [tasks, setTasks] = useState<TaskWithRefs[] | null>(null);
+  const [commercials, setCommercials] = useState<User[]>([]);
 
-  const scopedIds = useMemo(
-    () => new Set(scopeTasks(user, allTasks).map((t) => t.id)),
-    [user]
-  );
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchTasks(), fetchAssignableCommercials(user)])
+      .then(([ts, cs]) => {
+        if (!active) return;
+        setTasks(ts);
+        setCommercials(cs);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTasks([]);
+        toast.error("Erreur de chargement des tâches.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
-  const visible = tasks.filter((t) => {
-    if (!scopedIds.has(t.id)) return false;
+  const visible = (tasks ?? []).filter((t) => {
     if (filter === "all") return true;
     if (filter === "mine") return t.assignedTo === user.id;
     return t.assignedTo === filter;
   });
 
   const buckets = useMemo(() => {
-    const overdue: Task[] = [];
-    const today: Task[] = [];
-    const upcoming: Task[] = [];
+    const overdue: TaskWithRefs[] = [];
+    const today: TaskWithRefs[] = [];
+    const upcoming: TaskWithRefs[] = [];
     const now = new Date();
     const in7 = new Date();
     in7.setDate(in7.getDate() + 7);
 
     for (const t of visible) {
+      if (t.status !== "pending") continue;
       const due = new Date(t.dueDate);
       if (isToday(due)) today.push(t);
       else if (isPast(due)) overdue.push(t);
-      else if (
-        isWithinInterval(due, { start: startOfDay(now), end: in7 })
-      )
+      else if (isWithinInterval(due, { start: startOfDay(now), end: in7 }))
         upcoming.push(t);
     }
     overdue.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     today.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     upcoming.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-    // Group upcoming by day.
-    const grouped = new Map<string, Task[]>();
+    const grouped = new Map<string, TaskWithRefs[]>();
     for (const t of upcoming) {
       const key = fullDate(t.dueDate);
       const arr = grouped.get(key) ?? [];
@@ -74,16 +92,21 @@ export default function TasksPage() {
       grouped.set(key, arr);
     }
     return { overdue, today, upcomingGroups: grouped };
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, filter]);
 
-  const onToggle = (id: string, done: boolean) =>
+  const onToggle = (id: string, done: boolean) => {
+    const status = done ? "done" : "pending";
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, status: done ? "done" : "pending" } : t
-      )
+      (prev ?? []).map((t) => (t.id === id ? { ...t, status } : t)),
     );
+    setTaskStatus(id, status).catch(() =>
+      toast.error("La tâche n'a pas pu être mise à jour."),
+    );
+  };
 
-  const addTask = (task: Task) => setTasks((prev) => [task, ...prev]);
+  const addTask = (task: TaskWithRefs) =>
+    setTasks((prev) => [task, ...(prev ?? [])]);
 
   const showAssignee = user.role !== "commercial";
 
@@ -116,79 +139,85 @@ export default function TasksPage() {
         }
       />
 
-      <Section
-        title="En retard"
-        icon={AlertTriangle}
-        count={buckets.overdue.length}
-        tone="danger"
-      >
-        {buckets.overdue.length === 0 ? (
-          <EmptyState
-            icon={CalendarCheck}
-            title="Aucune tâche en retard"
-            description="Bravo, tout est à jour."
-          />
-        ) : (
-          <TaskList
-            tasks={buckets.overdue}
-            onToggle={onToggle}
-            showAssignee={showAssignee}
-          />
-        )}
-      </Section>
+      {tasks === null ? (
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Chargement des tâches…
+        </div>
+      ) : (
+        <>
+          <Section
+            title="En retard"
+            icon={AlertTriangle}
+            count={buckets.overdue.length}
+            tone="danger"
+          >
+            {buckets.overdue.length === 0 ? (
+              <EmptyState
+                icon={CalendarCheck}
+                title="Aucune tâche en retard"
+                description="Bravo, tout est à jour."
+              />
+            ) : (
+              <TaskList
+                tasks={buckets.overdue}
+                onToggle={onToggle}
+                showAssignee={showAssignee}
+              />
+            )}
+          </Section>
 
-      <Section
-        title="Aujourd'hui"
-        icon={CalendarCheck}
-        count={buckets.today.length}
-        tone="teal"
-      >
-        {buckets.today.length === 0 ? (
-          <EmptyState
+          <Section
+            title="Aujourd'hui"
             icon={CalendarCheck}
-            title="Rien de prévu aujourd'hui"
-          />
-        ) : (
-          <TaskList
-            tasks={buckets.today}
-            onToggle={onToggle}
-            showAssignee={showAssignee}
-          />
-        )}
-      </Section>
+            count={buckets.today.length}
+            tone="teal"
+          >
+            {buckets.today.length === 0 ? (
+              <EmptyState icon={CalendarCheck} title="Rien de prévu aujourd'hui" />
+            ) : (
+              <TaskList
+                tasks={buckets.today}
+                onToggle={onToggle}
+                showAssignee={showAssignee}
+              />
+            )}
+          </Section>
 
-      <Section
-        title="À venir (7 jours)"
-        icon={CalendarDays}
-        count={[...buckets.upcomingGroups.values()].reduce(
-          (s, a) => s + a.length,
-          0
-        )}
-        tone="gold"
-      >
-        {buckets.upcomingGroups.size === 0 ? (
-          <EmptyState
+          <Section
+            title="À venir (7 jours)"
             icon={CalendarDays}
-            title="Aucune tâche à venir"
-            description="Les 7 prochains jours sont libres."
-          />
-        ) : (
-          <div className="space-y-4">
-            {[...buckets.upcomingGroups.entries()].map(([day, dayTasks]) => (
-              <div key={day}>
-                <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {day}
-                </p>
-                <TaskList
-                  tasks={dayTasks}
-                  onToggle={onToggle}
-                  showAssignee={showAssignee}
-                />
+            count={[...buckets.upcomingGroups.values()].reduce(
+              (s, a) => s + a.length,
+              0,
+            )}
+            tone="gold"
+          >
+            {buckets.upcomingGroups.size === 0 ? (
+              <EmptyState
+                icon={CalendarDays}
+                title="Aucune tâche à venir"
+                description="Les 7 prochains jours sont libres."
+              />
+            ) : (
+              <div className="space-y-4">
+                {[...buckets.upcomingGroups.entries()].map(([day, dayTasks]) => (
+                  <div key={day}>
+                    <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {day}
+                    </p>
+                    <TaskList
+                      tasks={dayTasks}
+                      onToggle={onToggle}
+                      showAssignee={showAssignee}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </Section>
+            )}
+          </Section>
+        </>
+      )}
     </div>
   );
 }
@@ -233,7 +262,7 @@ function TaskList({
   onToggle,
   showAssignee,
 }: {
-  tasks: Task[];
+  tasks: TaskWithRefs[];
   onToggle: (id: string, done: boolean) => void;
   showAssignee: boolean;
 }) {
