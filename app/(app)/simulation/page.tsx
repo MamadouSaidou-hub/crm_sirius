@@ -1,11 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, ChevronRight, Phone, Search } from "lucide-react";
-import { useMockUser } from "@/lib/mock-auth";
-import { scopeProspects } from "@/lib/access";
-import { prospects as allProspects } from "@/lib/mock-data";
+import {
+  Calculator,
+  ChevronRight,
+  Loader2,
+  Phone,
+  Search,
+} from "lucide-react";
+import { toast } from "sonner";
+import { fetchProspects, type ProspectListItem } from "@/lib/data/prospects";
 import { PageHeader } from "@/components/shared/page-header";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -19,20 +24,34 @@ function normalize(value: string): string {
 
 export default function NewSimulationPage() {
   const router = useRouter();
-  const { user } = useMockUser();
   const [query, setQuery] = useState("");
+  const [prospects, setProspects] = useState<ProspectListItem[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchProspects()
+      .then((ps) => active && setProspects(ps))
+      .catch(() => {
+        if (!active) return;
+        setProspects([]);
+        toast.error("Erreur de chargement des prospects.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const results = useMemo(() => {
-    const scoped = scopeProspects(user, allProspects);
+    const all = prospects ?? [];
     const q = normalize(query);
     const filtered = q
-      ? scoped.filter(
+      ? all.filter(
           (p) =>
             normalize(p.name).includes(q) || normalize(p.phone).includes(q),
         )
-      : scoped;
+      : all;
     return filtered.slice(0, 40);
-  }, [user, query]);
+  }, [prospects, query]);
 
   return (
     <div className="space-y-6">
@@ -52,7 +71,12 @@ export default function NewSimulationPage() {
         />
       </div>
 
-      {results.length === 0 ? (
+      {prospects === null ? (
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Chargement…
+        </div>
+      ) : results.length === 0 ? (
         <EmptyState
           icon={Search}
           title="Aucun prospect trouvé"
@@ -64,9 +88,7 @@ export default function NewSimulationPage() {
             <button
               key={prospect.id}
               type="button"
-              onClick={() =>
-                router.push(`/prospects/${prospect.id}/simulation`)
-              }
+              onClick={() => router.push(`/prospects/${prospect.id}/simulation`)}
               className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:border-sirius-gold/40 hover:bg-secondary/40"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-sirius-teal">

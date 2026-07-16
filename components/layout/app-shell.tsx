@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
-import { useMockUser } from "@/lib/mock-auth";
-import { scopeTasks } from "@/lib/access";
-import { tasks as allTasks } from "@/lib/mock-data";
+import { fetchTasks } from "@/lib/data/tasks";
 import { isOverdue } from "@/lib/date";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user } = useMockUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   // Cmd/Ctrl+K opens the command palette.
   useEffect(() => {
@@ -28,13 +26,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const notificationCount = useMemo(
-    () =>
-      scopeTasks(user, allTasks).filter(
-        (t) => t.status === "pending" && isOverdue(t.dueDate)
-      ).length,
-    [user]
-  );
+  useEffect(() => {
+    let active = true;
+    fetchTasks()
+      .then((tasks) => {
+        if (!active) return;
+        setNotificationCount(
+          tasks.filter((t) => t.status === "pending" && isOverdue(t.dueDate))
+            .length,
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-sirius-navy">
