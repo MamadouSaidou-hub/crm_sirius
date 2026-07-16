@@ -133,11 +133,18 @@ persistantes + auth) sur **Supabase + Vercel**, clé Askia de test pour l'instan
   `01_schema.sql` (tables/enums/triggers), `02_rls.sql` (sécurité par rôle),
   `03_seed_reference.sql` (les 6 compagnies + liens NSIA). Voir
   [supabase/README.md](./supabase/README.md).
-- **Reste à faire** (gros morceau) : brancher le frontend sur Supabase (client
-  `@supabase/ssr`, remplacer `mock-data` / `mock-auth` / les stores en mémoire par
-  des requêtes réelles), auth, puis déploiement Vercel.
-- Note : le `CLAUDE.md` initial disait « pas de backend / pas de Supabase » — cette
-  contrainte est **levée** (le projet passe en production).
+- **En ligne** : https://crm-sirius-five.vercel.app (Vercel, repo GitHub
+  `MamadouSaidou-hub/crm_sirius`). Auth Supabase réelle (login/rôles/RLS).
+- **Data layer migré** (mock → Supabase) via `lib/data/*` : prospects, interactions,
+  tâches, objectifs/réalisations, équipe (création via route serveur `/api/users` +
+  service_role), dashboard, compagnies + liens, contrats/souscriptions, historique de
+  stage, kanban, palette Cmd+K. Les stores en mémoire (`lib/store/*`) sont supprimés.
+- **Reste en référence/compute** (légitimement non-DB) : le moteur de simulation et les
+  taux de commission utilisent la liste `insurers` de `lib/mock-data` (valeurs identiques
+  au seed DB). Le nom du prospect dans le breadcrumb et l'édition du profil dans
+  Paramètres restent cosmétiques/simulés.
+- Note : le `CLAUDE.md` initial disait « pas de backend / pas de Supabase » — contrainte
+  **levée** (le projet est en production).
 
 ## Prochaines pistes évoquées (non faites)
 
