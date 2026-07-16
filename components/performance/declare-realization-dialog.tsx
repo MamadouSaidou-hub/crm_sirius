@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { ProductType, Realization } from "@/lib/types";
+import type { ProductType } from "@/lib/types";
 import { PRODUCTS, PRODUCT_LABELS } from "@/lib/constants";
-import { declareRealization } from "@/lib/store/performance";
+import { declareRealization } from "@/lib/data/performance";
 import { periodLabel } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -31,7 +31,7 @@ const SOURCES = ["NSIA", "Askia", "Autre"] as const;
 interface DeclareRealizationDialogProps {
   commercialId: string;
   period: string;
-  onDeclared: (realization: Realization) => void;
+  onDeclared: () => void;
 }
 
 export function DeclareRealizationDialog({
@@ -54,26 +54,30 @@ export function DeclareRealizationDialog({
     setError(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
       setError(true);
       return;
     }
-    const realization = declareRealization({
-      commercialId,
-      amount: value,
-      product,
-      source: source.toLowerCase(),
-      reference: reference.trim() || undefined,
-      period,
-    });
-    onDeclared(realization);
-    toast.success("Réalisation déclarée", {
-      description: "En attente de validation par votre manager.",
-    });
-    reset();
-    setOpen(false);
+    try {
+      await declareRealization({
+        commercialId,
+        amount: value,
+        product,
+        source: source.toLowerCase(),
+        reference: reference.trim() || undefined,
+        period,
+      });
+      onDeclared();
+      toast.success("Réalisation déclarée", {
+        description: "En attente de validation par votre manager.",
+      });
+      reset();
+      setOpen(false);
+    } catch {
+      toast.error("Déclaration impossible. Réessayez.");
+    }
   };
 
   return (

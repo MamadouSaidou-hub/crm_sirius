@@ -1,6 +1,6 @@
 "use client";
 
-import { recentPeriods } from "@/lib/store/performance";
+import { recentPeriods } from "@/lib/data/performance";
 import { periodLabel } from "@/lib/date";
 import {
   Select,

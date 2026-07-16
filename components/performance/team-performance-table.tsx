@@ -2,7 +2,7 @@
 
 import { Target } from "lucide-react";
 import type { User } from "@/lib/types";
-import { attainment } from "@/lib/store/performance";
+import { attainment } from "@/lib/data/performance";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {

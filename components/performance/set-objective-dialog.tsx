@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { User } from "@/lib/types";
-import { setObjective, getObjective } from "@/lib/store/performance";
+import { fetchObjective, upsertObjective } from "@/lib/data/performance";
 import { periodLabel } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -37,26 +37,37 @@ export function SetObjectiveDialog({
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (target) {
-      const existing = getObjective(target.id, period);
-      setAmount(existing ? String(existing.targetAmount) : "");
-      setError(false);
-    }
+    if (!target) return;
+    setError(false);
+    setAmount("");
+    let active = true;
+    fetchObjective(target.id, period)
+      .then((existing) => {
+        if (active && existing) setAmount(String(existing.targetAmount));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [target, period]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!target) return;
     const value = Number(amount);
     if (!Number.isFinite(value) || value < 0) {
       setError(true);
       return;
     }
-    setObjective(target.id, value, setBy, period);
-    toast.success("Objectif défini", {
-      description: `${target.name} · ${periodLabel(period)}`,
-    });
-    onSaved();
-    onOpenChange(false);
+    try {
+      await upsertObjective(target.id, value, setBy, period);
+      toast.success("Objectif défini", {
+        description: `${target.name} · ${periodLabel(period)}`,
+      });
+      onSaved();
+      onOpenChange(false);
+    } catch {
+      toast.error("Enregistrement impossible. Vérifiez vos droits.");
+    }
   };
 
   return (

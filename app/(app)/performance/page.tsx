@@ -1,8 +1,8 @@
 "use client";
 
-import { useReducer, useState } from "react";
+import { useState } from "react";
 import { useMockUser } from "@/lib/mock-auth";
-import { CURRENT_PERIOD } from "@/lib/store/performance";
+import { CURRENT_PERIOD } from "@/lib/data/performance";
 import { PageHeader } from "@/components/shared/page-header";
 import { PeriodSelector } from "@/components/performance/period-selector";
 import { CommercialPerformance } from "@/components/performance/commercial-performance";
@@ -12,8 +12,6 @@ import { AdminPerformance } from "@/components/performance/admin-performance";
 export default function PerformancePage() {
   const { user } = useMockUser();
   const [period, setPeriod] = useState(CURRENT_PERIOD);
-  // Force a re-read of the in-session store after mutations.
-  const [, refresh] = useReducer((x: number) => x + 1, 0);
 
   return (
     <div className="space-y-6">
@@ -24,13 +22,13 @@ export default function PerformancePage() {
       />
 
       {user.role === "commercial" && (
-        <CommercialPerformance user={user} period={period} refresh={refresh} />
+        <CommercialPerformance user={user} period={period} />
       )}
       {user.role === "manager" && (
-        <ManagerPerformance user={user} period={period} refresh={refresh} />
+        <ManagerPerformance user={user} period={period} />
       )}
       {user.role === "admin" && (
-        <AdminPerformance user={user} period={period} refresh={refresh} />
+        <AdminPerformance user={user} period={period} />
       )}
     </div>
   );

@@ -1,13 +1,12 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import type { Realization } from "@/lib/types";
 import {
   PRODUCT_LABELS,
   REALIZATION_STATUS_BADGE_VARIANT,
   REALIZATION_STATUS_LABELS,
 } from "@/lib/constants";
-import { getUserById } from "@/lib/mock-data";
+import type { RealizationItem } from "@/lib/data/performance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +14,7 @@ import { formatFCFA } from "@/lib/utils";
 import { relativeDate } from "@/lib/date";
 
 interface RealizationsListProps {
-  realizations: Realization[];
+  realizations: RealizationItem[];
   /** Show which commercial declared each item (manager/admin views). */
   showCommercial?: boolean;
   /** When provided, pending items get validate/reject actions. */
@@ -32,9 +31,7 @@ export function RealizationsList({
   return (
     <div className="space-y-2">
       {realizations.map((r) => {
-        const commercial = showCommercial
-          ? getUserById(r.commercialId)
-          : undefined;
+        const commercialName = showCommercial ? r.commercialName : null;
         const canAct = r.status === "pending" && (onValidate || onReject);
         return (
           <Card key={r.id}>
@@ -49,7 +46,7 @@ export function RealizationsList({
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {commercial ? `${commercial.name} · ` : ""}
+                  {commercialName ? `${commercialName} · ` : ""}
                   {PRODUCT_LABELS[r.product]} · {r.source.toUpperCase()}
                   {r.reference ? ` · ${r.reference}` : ""} ·{" "}
                   {relativeDate(r.createdAt)}

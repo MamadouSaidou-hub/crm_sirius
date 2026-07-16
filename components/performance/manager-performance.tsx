@@ -1,15 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import type { User } from "@/lib/types";
-import { assignableCommercials } from "@/lib/access";
+import { useEffect, useReducer, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { Objective, User } from "@/lib/types";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import {
-  commissionTotal,
-  getObjective,
-  getPendingRealizations,
-  realizedTotal,
+  commissionSum,
+  fetchObjectives,
+  fetchRealizations,
+  objectiveAmount,
+  pendingItems,
+  realizedSum,
   setRealizationStatus,
-} from "@/lib/store/performance";
+  type RealizationItem,
+} from "@/lib/data/performance";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import {
   TeamPerformanceTable,
@@ -22,41 +27,72 @@ import { Card, CardContent } from "@/components/ui/card";
 interface ManagerPerformanceProps {
   user: User;
   period: string;
-  refresh: () => void;
 }
 
-export function ManagerPerformance({
-  user,
-  period,
-  refresh,
-}: ManagerPerformanceProps) {
-  const [objectiveTarget, setObjectiveTarget] = useState<User | null>(null);
+interface Data {
+  commercials: User[];
+  objectives: Objective[];
+  realizations: RealizationItem[];
+}
 
-  const commercials = assignableCommercials(user);
+export function ManagerPerformance({ user, period }: ManagerPerformanceProps) {
+  const [version, bump] = useReducer((x: number) => x + 1, 0);
+  const [objectiveTarget, setObjectiveTarget] = useState<User | null>(null);
+  const [data, setData] = useState<Data | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchAssignableCommercials(user),
+      fetchObjectives(period),
+      fetchRealizations(period),
+    ])
+      .then(([commercials, objectives, realizations]) => {
+        if (active) setData({ commercials, objectives, realizations });
+      })
+      .catch(() => {
+        if (active) setData({ commercials: [], objectives: [], realizations: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, period, version]);
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
+  const { commercials, objectives, realizations } = data;
+
   const rows: PerformanceRow[] = commercials.map((c) => ({
     user: c,
-    target: getObjective(c.id, period)?.targetAmount ?? 0,
-    realized: realizedTotal(c.id, ["validated"], period),
-    pending: realizedTotal(c.id, ["pending"], period),
-    commission: commissionTotal(c.id, period),
+    target: objectiveAmount(objectives, c.id),
+    realized: realizedSum(realizations, c.id, ["validated"]),
+    pending: realizedSum(realizations, c.id, ["pending"]),
+    commission: commissionSum(realizations, c.id),
   }));
 
   const teamRealized = rows.reduce((s, r) => s + r.realized, 0);
   const teamPending = rows.reduce((s, r) => s + (r.pending ?? 0), 0);
-  const teamObjective = getObjective(user.id, period)?.targetAmount ?? 0;
-
-  const pending = getPendingRealizations(
+  const teamObjective = objectiveAmount(objectives, user.id);
+  const pending = pendingItems(
+    realizations,
     commercials.map((c) => c.id),
-    period,
   );
 
   const handleValidate = (id: string) => {
-    setRealizationStatus(id, "validated", user.id);
-    refresh();
+    setRealizationStatus(id, "validated", user.id).then(bump).catch(() =>
+      toast.error("Action impossible."),
+    );
   };
   const handleReject = (id: string) => {
-    setRealizationStatus(id, "rejected", user.id);
-    refresh();
+    setRealizationStatus(id, "rejected", user.id).then(bump).catch(() =>
+      toast.error("Action impossible."),
+    );
   };
 
   return (
@@ -111,7 +147,7 @@ export function ManagerPerformance({
         onOpenChange={(o) => {
           if (!o) setObjectiveTarget(null);
         }}
-        onSaved={refresh}
+        onSaved={bump}
       />
     </div>
   );

@@ -1,13 +1,15 @@
 "use client";
 
-import { BadgeDollarSign, Target } from "lucide-react";
+import { useEffect, useReducer, useState } from "react";
+import { BadgeDollarSign, Loader2, Target } from "lucide-react";
 import type { User } from "@/lib/types";
 import {
-  commissionTotal,
-  getObjective,
-  getRealizationsForCommercial,
-  realizedTotal,
-} from "@/lib/store/performance";
+  commissionSum,
+  fetchObjective,
+  fetchRealizations,
+  realizedSum,
+  type RealizationItem,
+} from "@/lib/data/performance";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import { PartnerPortalsCard } from "@/components/performance/partner-portals-card";
 import { DeclareRealizationDialog } from "@/components/performance/declare-realization-dialog";
@@ -19,19 +21,43 @@ import { formatFCFA } from "@/lib/utils";
 interface CommercialPerformanceProps {
   user: User;
   period: string;
-  refresh: () => void;
 }
 
 export function CommercialPerformance({
   user,
   period,
-  refresh,
 }: CommercialPerformanceProps) {
-  const target = getObjective(user.id, period)?.targetAmount ?? 0;
-  const validated = realizedTotal(user.id, ["validated"], period);
-  const pending = realizedTotal(user.id, ["pending"], period);
-  const commission = commissionTotal(user.id, period);
-  const realizations = getRealizationsForCommercial(user.id, period);
+  const [version, bump] = useReducer((x: number) => x + 1, 0);
+  const [target, setTarget] = useState(0);
+  const [realizations, setRealizations] = useState<RealizationItem[] | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchObjective(user.id, period), fetchRealizations(period)])
+      .then(([objective, reals]) => {
+        if (!active) return;
+        setTarget(objective?.targetAmount ?? 0);
+        setRealizations(reals.filter((r) => r.commercialId === user.id));
+      })
+      .catch(() => active && setRealizations([]));
+    return () => {
+      active = false;
+    };
+  }, [user.id, period, version]);
+
+  if (realizations === null) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
+  const validated = realizedSum(realizations, user.id, ["validated"]);
+  const pending = realizedSum(realizations, user.id, ["pending"]);
+  const commission = commissionSum(realizations, user.id);
 
   return (
     <div className="space-y-6">
@@ -42,7 +68,7 @@ export function CommercialPerformance({
         <DeclareRealizationDialog
           commercialId={user.id}
           period={period}
-          onDeclared={refresh}
+          onDeclared={bump}
         />
       </div>
 

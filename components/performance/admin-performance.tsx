@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import type { User } from "@/lib/types";
-import { users } from "@/lib/mock-data";
+import { useEffect, useReducer, useState } from "react";
+import { Loader2 } from "lucide-react";
+import type { Objective, User } from "@/lib/types";
+import { fetchAllCommercials, fetchManagers } from "@/lib/data/profiles";
 import {
-  commissionTotal,
-  getObjective,
-  realizedTotal,
-} from "@/lib/store/performance";
+  commissionSum,
+  fetchObjectives,
+  fetchRealizations,
+  objectiveAmount,
+  realizedSum,
+  type RealizationItem,
+} from "@/lib/data/performance";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import {
   TeamPerformanceTable,
@@ -18,40 +22,82 @@ import { SetObjectiveDialog } from "@/components/performance/set-objective-dialo
 interface AdminPerformanceProps {
   user: User;
   period: string;
-  refresh: () => void;
 }
 
-/** Realized/pending/commission of every commercial reporting to a manager. */
-function managerTotals(
-  managerId: string,
-  period: string,
-): { realized: number; pending: number; commission: number } {
-  const team = users.filter(
-    (u) => u.role === "commercial" && u.managerId === managerId,
-  );
-  return team.reduce(
-    (acc, c) => ({
-      realized: acc.realized + realizedTotal(c.id, ["validated"], period),
-      pending: acc.pending + realizedTotal(c.id, ["pending"], period),
-      commission: acc.commission + commissionTotal(c.id, period),
-    }),
-    { realized: 0, pending: 0, commission: 0 },
-  );
+interface Data {
+  managers: User[];
+  commercials: User[];
+  objectives: Objective[];
+  realizations: RealizationItem[];
 }
 
-export function AdminPerformance({
-  user,
-  period,
-  refresh,
-}: AdminPerformanceProps) {
+export function AdminPerformance({ user, period }: AdminPerformanceProps) {
+  const [version, bump] = useReducer((x: number) => x + 1, 0);
   const [objectiveTarget, setObjectiveTarget] = useState<User | null>(null);
+  const [data, setData] = useState<Data | null>(null);
 
-  const managers = users.filter((u) => u.role === "manager");
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchManagers(),
+      fetchAllCommercials(),
+      fetchObjectives(period),
+      fetchRealizations(period),
+    ])
+      .then(([managers, commercials, objectives, realizations]) => {
+        if (active)
+          setData({ managers, commercials, objectives, realizations });
+      })
+      .catch(() => {
+        if (active)
+          setData({
+            managers: [],
+            commercials: [],
+            objectives: [],
+            realizations: [],
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [period, version]);
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
+  const { managers, commercials, objectives, realizations } = data;
+
+  // Commercial ids grouped by their manager.
+  const teamByManager = new Map<string, string[]>();
+  for (const c of commercials) {
+    if (!c.managerId) continue;
+    const arr = teamByManager.get(c.managerId) ?? [];
+    arr.push(c.id);
+    teamByManager.set(c.managerId, arr);
+  }
+
   const rows: PerformanceRow[] = managers.map((m) => {
-    const { realized, pending, commission } = managerTotals(m.id, period);
+    const ids = teamByManager.get(m.id) ?? [];
+    const realized = ids.reduce(
+      (s, cid) => s + realizedSum(realizations, cid, ["validated"]),
+      0,
+    );
+    const pending = ids.reduce(
+      (s, cid) => s + realizedSum(realizations, cid, ["pending"]),
+      0,
+    );
+    const commission = ids.reduce(
+      (s, cid) => s + commissionSum(realizations, cid),
+      0,
+    );
     return {
       user: m,
-      target: getObjective(m.id, period)?.targetAmount ?? 0,
+      target: objectiveAmount(objectives, m.id),
       realized,
       pending,
       commission,
@@ -89,7 +135,7 @@ export function AdminPerformance({
         onOpenChange={(o) => {
           if (!o) setObjectiveTarget(null);
         }}
-        onSaved={refresh}
+        onSaved={bump}
       />
     </div>
   );

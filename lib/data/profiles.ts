@@ -52,3 +52,27 @@ export async function fetchAssignableCommercials(
   if (error) throw error;
   return (data ?? []).map((r) => mapProfile(r as ProfileRow));
 }
+
+/** All managers (admin view). */
+export async function fetchManagers(): Promise<User[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(PROFILE_COLS)
+    .eq("role", "manager")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []).map((r) => mapProfile(r as ProfileRow));
+}
+
+/** All commercials (admin view; carries manager_id for grouping). */
+export async function fetchAllCommercials(): Promise<User[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(PROFILE_COLS)
+    .eq("role", "commercial")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []).map((r) => mapProfile(r as ProfileRow));
+}

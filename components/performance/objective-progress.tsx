@@ -1,6 +1,6 @@
 "use client";
 
-import { attainment } from "@/lib/store/performance";
+import { attainment } from "@/lib/data/performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatFCFA } from "@/lib/utils";
 import { cn } from "@/lib/utils";
