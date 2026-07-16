@@ -56,6 +56,33 @@ export async function fetchInteractions(
   return (data ?? []).map((r) => mapRow(r as unknown as Row));
 }
 
+/** A recent interaction enriched with its prospect name (dashboard feed). */
+export interface RecentActivity extends InteractionItem {
+  prospectName: string | null;
+}
+
+interface RecentRow extends Row {
+  prospect: { name: string } | { name: string }[] | null;
+}
+
+const RECENT_COLS = `${COLS},prospect:prospects!prospect_id(name)`;
+
+export async function fetchRecentInteractions(
+  limit = 10,
+): Promise<RecentActivity[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("interactions")
+    .select(RECENT_COLS)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const row = r as unknown as RecentRow;
+    return { ...mapRow(row), prospectName: firstOf(row.prospect)?.name ?? null };
+  });
+}
+
 export interface InteractionInput {
   prospectId: string;
   type: InteractionType;

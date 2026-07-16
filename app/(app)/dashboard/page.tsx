@@ -1,26 +1,32 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   Banknote,
   FileText,
+  Loader2,
   TrendingUp,
   Users as UsersIcon,
 } from "lucide-react";
+import { isToday } from "date-fns";
+import { toast } from "sonner";
 import { useMockUser } from "@/lib/mock-auth";
-import { Button } from "@/components/ui/button";
-import { scopeProspects, scopeTasks } from "@/lib/access";
+import {
+  fetchProspects,
+  type ProspectListItem,
+} from "@/lib/data/prospects";
+import { fetchTasks, type TaskWithRefs } from "@/lib/data/tasks";
+import {
+  fetchRecentInteractions,
+  type RecentActivity,
+} from "@/lib/data/interactions";
 import {
   buildFunnel,
   buildMonthlyRevenue,
   buildTopCommercials,
-  interactions as allInteractions,
-  prospects as allProspects,
-  tasks as allTasks,
-} from "@/lib/mock-data";
-import { isToday } from "date-fns";
+} from "@/lib/data/dashboard";
 import { isOverdue } from "@/lib/date";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -35,6 +41,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { formatFCFACompact } from "@/lib/utils";
 import { ROLE_LABELS } from "@/lib/constants";
 
@@ -42,39 +49,56 @@ export default function DashboardPage() {
   const { user } = useMockUser();
   const isCommercial = user.role === "commercial";
 
+  const [prospects, setProspects] = useState<ProspectListItem[] | null>(null);
+  const [tasks, setTasks] = useState<TaskWithRefs[]>([]);
+  const [interactions, setInteractions] = useState<RecentActivity[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchProspects(),
+      fetchTasks(),
+      fetchRecentInteractions(10),
+    ])
+      .then(([ps, ts, its]) => {
+        if (!active) return;
+        setProspects(ps);
+        setTasks(ts);
+        setInteractions(its);
+      })
+      .catch(() => {
+        if (!active) return;
+        setProspects([]);
+        toast.error("Erreur de chargement du tableau de bord.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const data = useMemo(() => {
-    const prospects = scopeProspects(user, allProspects);
-    const tasks = scopeTasks(user, allTasks);
-    const visibleProspectIds = new Set(prospects.map((p) => p.id));
-
-    const interactions = allInteractions
-      .filter((it) => visibleProspectIds.has(it.prospectId))
-      .slice(0, 10);
-
-    const won = prospects.filter((p) => p.stage === "won").length;
-    const total = prospects.length;
+    const ps = prospects ?? [];
+    const won = ps.filter((p) => p.stage === "won").length;
+    const total = ps.length;
     const conversion = total > 0 ? Math.round((won / total) * 100) : 0;
-    const pipelineValue = prospects
+    const pipelineValue = ps
       .filter((p) => p.stage !== "lost")
       .reduce((sum, p) => sum + p.estimatedPremium, 0);
     const overdueTasks = tasks.filter(
-      (t) => t.status === "pending" && isOverdue(t.dueDate)
+      (t) => t.status === "pending" && isOverdue(t.dueDate),
     ).length;
     const todayTasks = tasks.filter(
-      (t) => t.status === "pending" && isToday(new Date(t.dueDate))
+      (t) => t.status === "pending" && isToday(new Date(t.dueDate)),
     ).length;
-
     const upcoming = tasks
       .filter((t) => t.status === "pending")
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
       .slice(0, 5);
 
     return {
-      prospects,
-      interactions,
-      funnel: buildFunnel(prospects),
-      revenue: buildMonthlyRevenue(prospects),
-      topCommercials: buildTopCommercials(prospects),
+      funnel: buildFunnel(ps),
+      revenue: buildMonthlyRevenue(ps),
+      topCommercials: buildTopCommercials(ps),
       total,
       conversion,
       pipelineValue,
@@ -82,7 +106,15 @@ export default function DashboardPage() {
       todayTasks,
       upcoming,
     };
-  }, [user]);
+  }, [prospects, tasks]);
+
+  if (prospects === null) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -190,7 +222,7 @@ export default function DashboardPage() {
               <CardTitle>Dernières activités</CardTitle>
             </CardHeader>
             <CardContent>
-              <RecentActivities items={data.interactions} />
+              <RecentActivities items={interactions} />
             </CardContent>
           </Card>
         </>
