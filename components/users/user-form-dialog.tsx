@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { User, UserRole } from "@/lib/types";
 import { ROLE_LABELS } from "@/lib/constants";
-import { users } from "@/lib/mock-data";
+import { fetchManagers } from "@/lib/data/profiles";
+import { createUser, updateUserProfile } from "@/lib/data/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,7 @@ const schema = z
     phone: z
       .string()
       .regex(/^\+221\s?[0-9\s]{9,}$/, "Format attendu : +221 77 123 45 67"),
+    password: z.string().optional(),
   })
   .superRefine((val, ctx) => {
     if (val.role === "commercial" && !val.managerId) {
@@ -58,6 +60,7 @@ interface UserFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user?: User;
+  onSaved?: () => void;
 }
 
 export function UserFormDialog({
@@ -65,8 +68,14 @@ export function UserFormDialog({
   open,
   onOpenChange,
   user,
+  onSaved,
 }: UserFormDialogProps) {
-  const managers = users.filter((u) => u.role === "manager");
+  const [managers, setManagers] = useState<User[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) fetchManagers().then(setManagers).catch(() => setManagers([]));
+  }, [open]);
 
   const {
     register,
@@ -84,6 +93,7 @@ export function UserFormDialog({
       managerId: "",
       agency: "Agence Dakar Plateau",
       phone: "+221 ",
+      password: "",
     },
   });
 
@@ -96,6 +106,7 @@ export function UserFormDialog({
         managerId: user?.managerId ?? "",
         agency: user?.agency ?? "Agence Dakar Plateau",
         phone: user?.phone ?? "+221 ",
+        password: "",
       });
     }
   }, [open, user, reset]);
@@ -103,17 +114,47 @@ export function UserFormDialog({
   const role = watch("role");
   const managerId = watch("managerId");
 
-  const onSubmit = (values: FormValues) => {
-    if (mode === "invite") {
-      toast.success("Invitation envoyée (simulée)", {
-        description: `${values.name} a été invité comme ${ROLE_LABELS[values.role].toLowerCase()}.`,
-      });
-    } else {
-      toast.success("Membre mis à jour", {
-        description: `${values.name} a été enregistré (simulation).`,
-      });
+  const onSubmit = async (values: FormValues) => {
+    setSubmitting(true);
+    try {
+      if (mode === "invite") {
+        if (!values.password || values.password.length < 6) {
+          toast.error("Mot de passe requis (6 caractères minimum).");
+          setSubmitting(false);
+          return;
+        }
+        await createUser({
+          name: values.name,
+          email: values.email,
+          password: values.password,
+          role: values.role,
+          managerId: values.managerId,
+          agency: values.agency,
+          phone: values.phone,
+        });
+        toast.success("Membre créé", {
+          description: `${values.name} peut se connecter avec cet email.`,
+        });
+      } else if (user) {
+        await updateUserProfile(user.id, {
+          name: values.name,
+          role: values.role,
+          managerId: values.managerId || null,
+          agency: values.agency,
+          phone: values.phone,
+        });
+        toast.success("Membre mis à jour");
+      }
+      onSaved?.();
+      onOpenChange(false);
+    } catch {
+      toast.error(
+        mode === "invite"
+          ? "Création impossible (email déjà utilisé ?)."
+          : "Mise à jour impossible. Vérifiez vos droits.",
+      );
+      setSubmitting(false);
     }
-    onOpenChange(false);
   };
 
   return (
@@ -125,7 +166,7 @@ export function UserFormDialog({
           </DialogTitle>
           <DialogDescription>
             {mode === "invite"
-              ? "Le membre recevra une invitation par email (simulée)."
+              ? "Le compte est créé immédiatement — communiquez l'email et le mot de passe au membre."
               : "Mettez à jour les informations du membre."}
           </DialogDescription>
         </DialogHeader>
@@ -136,7 +177,12 @@ export function UserFormDialog({
               <Input {...register("name")} placeholder="Awa Diop" />
             </Field>
             <Field label="Email" error={errors.email?.message}>
-              <Input {...register("email")} placeholder="awa@sirius.com" />
+              <Input
+                {...register("email")}
+                placeholder="awa@sirius.com"
+                readOnly={mode === "edit"}
+                className={mode === "edit" ? "opacity-70" : undefined}
+              />
             </Field>
             <Field label="Rôle" error={errors.role?.message}>
               <Select
@@ -187,6 +233,19 @@ export function UserFormDialog({
             <Field label="Téléphone" error={errors.phone?.message}>
               <Input {...register("phone")} placeholder="+221 77 123 45 67" />
             </Field>
+            {mode === "invite" && (
+              <Field
+                label="Mot de passe initial"
+                error={errors.password?.message}
+                className="sm:col-span-2"
+              >
+                <Input
+                  type="password"
+                  {...register("password")}
+                  placeholder="6 caractères minimum"
+                />
+              </Field>
+            )}
           </div>
 
           <DialogFooter>
@@ -194,11 +253,12 @@ export function UserFormDialog({
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
+              disabled={submitting}
             >
               Annuler
             </Button>
-            <Button type="submit">
-              {mode === "invite" ? "Envoyer l'invitation" : "Enregistrer"}
+            <Button type="submit" disabled={submitting}>
+              {mode === "invite" ? "Créer le membre" : "Enregistrer"}
             </Button>
           </DialogFooter>
         </form>

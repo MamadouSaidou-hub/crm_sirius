@@ -4,7 +4,7 @@ import { MoreHorizontal, Pencil, Power, Send } from "lucide-react";
 import { toast } from "sonner";
 import type { User } from "@/lib/types";
 import { ROLE_BADGE_VARIANT, ROLE_LABELS } from "@/lib/constants";
-import { getUserById } from "@/lib/mock-data";
+import type { UserWithManager } from "@/lib/data/users";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import {
 import { relativeDate } from "@/lib/date";
 
 interface UsersTableProps {
-  users: User[];
+  users: UserWithManager[];
   onEdit: (user: User) => void;
   onToggleActive: (id: string) => void;
 }
@@ -95,9 +95,6 @@ export function UsersTable({ users, onEdit, onToggleActive }: UsersTableProps) {
           </TableHeader>
           <TableBody>
             {users.map((user) => {
-              const manager = user.managerId
-                ? getUserById(user.managerId)
-                : null;
               return (
                 <TableRow key={user.id}>
                   <TableCell>
@@ -119,7 +116,7 @@ export function UsersTable({ users, onEdit, onToggleActive }: UsersTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {manager?.name ?? "—"}
+                    {user.managerName ?? "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.agency}
@@ -149,7 +146,6 @@ export function UsersTable({ users, onEdit, onToggleActive }: UsersTableProps) {
       {/* Mobile cards */}
       <div className="grid grid-cols-1 gap-3 md:hidden">
         {users.map((user) => {
-          const manager = user.managerId ? getUserById(user.managerId) : null;
           return (
             <div
               key={user.id}
@@ -180,9 +176,9 @@ export function UsersTable({ users, onEdit, onToggleActive }: UsersTableProps) {
                 <Badge variant={user.active ? "success" : "muted"}>
                   {user.active ? "Actif" : "Inactif"}
                 </Badge>
-                {manager && (
+                {user.managerName && (
                   <span className="text-muted-foreground">
-                    Manager : {manager.name}
+                    Manager : {user.managerName}
                   </span>
                 )}
               </div>
