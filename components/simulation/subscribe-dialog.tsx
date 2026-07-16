@@ -3,17 +3,13 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, FileText } from "lucide-react";
 import { toast } from "sonner";
-import type {
-  Contract,
-  Insurer,
-  PaymentMethod,
-  QuoteOption,
-} from "@/lib/types";
+import type { Insurer, PaymentMethod, QuoteOption } from "@/lib/types";
 import {
   AUTO_FORMULA_LABELS,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/constants";
 import { getConnector } from "@/lib/insurers/connector";
+import { createContract, type ContractItem } from "@/lib/data/contracts";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,7 +43,7 @@ interface SubscribeDialogProps {
   option: QuoteOption;
   prospectId: string;
   clientName: string;
-  onSubscribed: (contract: Contract) => void;
+  onSubscribed: (contract: ContractItem) => void;
 }
 
 export function SubscribeDialog({
@@ -62,7 +58,8 @@ export function SubscribeDialog({
   const { user } = useMockUser();
   const [effectiveDate, setEffectiveDate] = useState(todayISODate());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("wave");
-  const [result, setResult] = useState<Contract | null>(null);
+  const [result, setResult] = useState<ContractItem | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Reset the dialog whenever it is (re)opened for a fresh subscription.
   useEffect(() => {
@@ -70,10 +67,12 @@ export function SubscribeDialog({
       setEffectiveDate(todayISODate());
       setPaymentMethod("wave");
       setResult(null);
+      setSubmitting(false);
     }
   }, [open]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    setSubmitting(true);
     const res = getConnector(insurer).subscribe({
       insurer,
       option,
@@ -82,35 +81,35 @@ export function SubscribeDialog({
       clientName,
     });
 
-    const start = new Date(effectiveDate);
-    const end = new Date(start);
+    const end = new Date(effectiveDate);
     end.setFullYear(end.getFullYear() + 1);
 
-    const contract: Contract = {
-      id: `ctr-${Date.now()}`,
-      quoteId: `q-${Date.now()}`,
-      prospectId,
-      insurerId: insurer.id,
-      formula: option.formula,
-      totalPremium: option.totalPremium,
-      effectiveDate: start.toISOString(),
-      expiryDate: end.toISOString(),
-      status: res.status,
-      paymentMethod,
-      paymentStatus: res.status === "active" ? "paid" : "pending",
-      policyNumber: res.policyNumber,
-      attestationNumber: res.attestationNumber,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
-    };
-
-    setResult(contract);
-    if (res.status === "active") {
-      toast.success("Souscription confirmée", { description: res.message });
-    } else {
-      toast.info("Dossier transmis", { description: res.message });
+    try {
+      const created = await createContract({
+        prospectId,
+        insurerId: insurer.id,
+        formula: option.formula,
+        totalPremium: option.totalPremium,
+        effectiveDate,
+        expiryDate: end.toISOString().slice(0, 10),
+        status: res.status,
+        paymentMethod,
+        paymentStatus: res.status === "active" ? "paid" : "pending",
+        policyNumber: res.policyNumber,
+        attestationNumber: res.attestationNumber,
+        createdBy: user.id,
+      });
+      setResult(created);
+      if (res.status === "active") {
+        toast.success("Souscription confirmée", { description: res.message });
+      } else {
+        toast.info("Dossier transmis", { description: res.message });
+      }
+      onSubscribed(created);
+    } catch {
+      toast.error("Souscription impossible. Vérifiez vos droits et réessayez.");
+      setSubmitting(false);
     }
-    onSubscribed(contract);
   };
 
   return (
@@ -174,10 +173,16 @@ export function SubscribeDialog({
               </div>
             </div>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
                 Annuler
               </Button>
-              <Button onClick={handleConfirm}>Confirmer la souscription</Button>
+              <Button onClick={handleConfirm} disabled={submitting}>
+                Confirmer la souscription
+              </Button>
             </DialogFooter>
           </>
         )}
@@ -190,7 +195,7 @@ function ResultView({
   contract,
   onClose,
 }: {
-  contract: Contract;
+  contract: ContractItem;
   onClose: () => void;
 }) {
   const active = contract.status === "active";

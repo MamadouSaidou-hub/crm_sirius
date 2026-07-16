@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -10,12 +10,17 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import type { Prospect, Stage } from "@/lib/types";
+import type { Stage, User } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
-import { assignableCommercials, scopeProspects } from "@/lib/access";
-import { prospects as allProspects } from "@/lib/mock-data";
+import { fetchAssignableCommercials } from "@/lib/data/profiles";
+import {
+  fetchProspects,
+  updateProspectStage,
+  type ProspectListItem,
+} from "@/lib/data/prospects";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { KanbanCard } from "@/components/kanban/kanban-card";
 import { LostReasonDialog } from "@/components/prospects/lost-reason-dialog";
@@ -29,41 +34,57 @@ import {
 
 export function KanbanBoard() {
   const { user } = useMockUser();
-  const commercials = useMemo(() => assignableCommercials(user), [user]);
   const showFilter = user.role !== "commercial";
 
   const [filter, setFilter] = useState<string>("all");
-  const [items, setItems] = useState<Prospect[]>(() =>
-    scopeProspects(user, allProspects).map((p) => ({ ...p }))
-  );
+  const [items, setItems] = useState<ProspectListItem[] | null>(null);
+  const [commercials, setCommercials] = useState<User[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [pendingLost, setPendingLost] = useState<Prospect | null>(null);
+  const [pendingLost, setPendingLost] = useState<ProspectListItem | null>(null);
 
-  // Re-scope when the impersonated user changes.
-  const scopedIds = useMemo(
-    () => new Set(scopeProspects(user, allProspects).map((p) => p.id)),
-    [user]
-  );
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchProspects(), fetchAssignableCommercials(user)])
+      .then(([ps, cs]) => {
+        if (!active) return;
+        setItems(ps);
+        setCommercials(cs);
+      })
+      .catch(() => {
+        if (!active) return;
+        setItems([]);
+        toast.error("Erreur de chargement du pipeline.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
-  const visible = items.filter(
-    (p) =>
-      scopedIds.has(p.id) && (filter === "all" || p.assignedTo === filter)
+  const visible = (items ?? []).filter(
+    (p) => filter === "all" || p.assignedTo === filter,
   );
 
   const byStage = (stage: Stage) => visible.filter((p) => p.stage === stage);
 
   const activeProspect = activeId
-    ? items.find((p) => p.id === activeId) ?? null
+    ? (items ?? []).find((p) => p.id === activeId) ?? null
     : null;
+
+  const persistStage = (prospectId: string, stage: Stage, reason?: string) => {
+    updateProspectStage(prospectId, stage, reason).catch(() =>
+      toast.error("Le déplacement n'a pas pu être enregistré."),
+    );
+  };
 
   const moveToStage = (prospectId: string, stage: Stage) => {
     setItems((prev) =>
-      prev.map((p) => (p.id === prospectId ? { ...p, stage } : p))
+      (prev ?? []).map((p) => (p.id === prospectId ? { ...p, stage } : p)),
     );
+    persistStage(prospectId, stage);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -81,7 +102,7 @@ export function KanbanBoard() {
     if (!STAGES.includes(targetStage) || targetStage === sourceStage) return;
 
     if (targetStage === "lost") {
-      const prospect = items.find((p) => p.id === prospectId);
+      const prospect = (items ?? []).find((p) => p.id === prospectId);
       if (prospect) setPendingLost(prospect);
       return;
     }
@@ -95,6 +116,14 @@ export function KanbanBoard() {
       });
     }
   };
+
+  if (items === null) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -124,11 +153,7 @@ export function KanbanBoard() {
       >
         <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-4">
           {STAGES.map((stage) => (
-            <KanbanColumn
-              key={stage}
-              stage={stage}
-              prospects={byStage(stage)}
-            />
+            <KanbanColumn key={stage} stage={stage} prospects={byStage(stage)} />
           ))}
         </div>
 
@@ -147,13 +172,15 @@ export function KanbanBoard() {
         prospectName={pendingLost?.name ?? ""}
         onConfirm={(reason) => {
           if (pendingLost) {
+            const lostId = pendingLost.id;
             setItems((prev) =>
-              prev.map((p) =>
-                p.id === pendingLost.id
+              (prev ?? []).map((p) =>
+                p.id === lostId
                   ? { ...p, stage: "lost", lostReason: reason }
-                  : p
-              )
+                  : p,
+              ),
             );
+            persistStage(lostId, "lost", reason);
             toast.info("Prospect marqué comme perdu", { description: reason });
           }
           setPendingLost(null);

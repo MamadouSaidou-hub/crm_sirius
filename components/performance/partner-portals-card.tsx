@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, Share2, ShieldCheck } from "lucide-react";
-import { getInsurerById } from "@/lib/mock-data";
-import { listSubscriptionPortals } from "@/lib/store/partner-links";
+import { fetchInsurers } from "@/lib/data/insurers";
 import {
   Card,
   CardContent,
@@ -14,16 +13,36 @@ import {
 import { Button } from "@/components/ui/button";
 import { ShareLinkDialog } from "@/components/performance/share-link-dialog";
 
+interface Portal {
+  name: string;
+  url: string;
+}
+
 /**
  * Commercial-facing card: open a partner's subscription portal (e.g. NSIA Vie)
  * or share the link with a prospect (WhatsApp / email / QR), then declare the
  * realization below for validation.
  */
 export function PartnerPortalsCard() {
-  const portals = listSubscriptionPortals();
-  const [share, setShare] = useState<{ name: string; url: string } | null>(
-    null,
-  );
+  const [portals, setPortals] = useState<Portal[]>([]);
+  const [share, setShare] = useState<Portal | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchInsurers()
+      .then((insurers) => {
+        if (!active) return;
+        setPortals(
+          insurers
+            .filter((i) => i.subscriptionUrl)
+            .map((i) => ({ name: i.name, url: i.subscriptionUrl as string })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (portals.length === 0) return null;
 
@@ -37,12 +56,11 @@ export function PartnerPortalsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {portals.map(({ insurerId, url }) => {
-          const insurer = getInsurerById(insurerId);
-          const name = insurer?.name ?? "Partenaire";
+        {portals.map((portal) => {
+          const { name, url } = portal;
           return (
             <div
-              key={insurerId}
+              key={name}
               className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex items-center gap-2">
@@ -52,7 +70,7 @@ export function PartnerPortalsCard() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setShare({ name, url })}>
+                <Button size="sm" onClick={() => setShare(portal)}>
                   <Share2 className="h-4 w-4" />
                   Partager le lien
                 </Button>

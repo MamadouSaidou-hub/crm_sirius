@@ -4,12 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock, Loader2 } from "lucide-react";
-import type {
-  AutoRiskData,
-  Contract,
-  QuoteOption,
-  SimProduct,
-} from "@/lib/types";
+import type { AutoRiskData, QuoteOption, SimProduct } from "@/lib/types";
 import {
   AUTO_FORMULA_LABELS,
   CONTRACT_STATUS_BADGE_VARIANT,
@@ -19,10 +14,10 @@ import {
 import {
   getInsurerById,
   getInsurersForProduct,
-  getProspectById,
   simulateAuto,
 } from "@/lib/mock-data";
-import { addContract } from "@/lib/store/subscriptions";
+import { fetchProspect, type ProspectListItem } from "@/lib/data/prospects";
+import type { ContractItem } from "@/lib/data/contracts";
 import { AutoSimulationForm } from "@/components/simulation/auto-simulation-form";
 import {
   AskiaOptions,
@@ -54,8 +49,9 @@ export default function ProspectSimulationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const prospect = getProspectById(id);
-  if (!prospect) notFound();
+  const [prospect, setProspect] = useState<
+    ProspectListItem | null | undefined
+  >(undefined);
 
   const [product, setProduct] = useState<SimProduct>("auto");
   const [risk, setRisk] = useState<AutoRiskData | null>(null);
@@ -65,7 +61,7 @@ export default function ProspectSimulationPage({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<QuoteOption | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [contract, setContract] = useState<Contract | null>(null);
+  const [contract, setContract] = useState<ContractItem | null>(null);
 
   const autoInsurers = getInsurersForProduct("auto");
   const isAskia = insurerId === ASKIA_ID;
@@ -94,6 +90,16 @@ export default function ProspectSimulationPage({
     };
   }, [risk, insurerId, isAskia, askia]);
 
+  useEffect(() => {
+    let active = true;
+    fetchProspect(id)
+      .then((p) => active && setProspect(p))
+      .catch(() => active && setProspect(null));
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
   const selectedInsurer = selected
     ? getInsurerById(selected.insurerId)
     : undefined;
@@ -103,10 +109,18 @@ export default function ProspectSimulationPage({
     setDialogOpen(true);
   };
 
-  const handleSubscribed = (created: Contract) => {
-    addContract(created);
+  const handleSubscribed = (created: ContractItem) => {
     setContract(created);
   };
+
+  if (prospect === undefined) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+  if (prospect === null) notFound();
 
   return (
     <div className="space-y-6">
@@ -216,8 +230,7 @@ export default function ProspectSimulationPage({
   );
 }
 
-function ContractBanner({ contract }: { contract: Contract }) {
-  const insurer = getInsurerById(contract.insurerId);
+function ContractBanner({ contract }: { contract: ContractItem }) {
   const active = contract.status === "active";
   return (
     <div className="flex flex-col gap-3 rounded-md border border-sirius-success/30 bg-sirius-success/10 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -229,7 +242,7 @@ function ContractBanner({ contract }: { contract: Contract }) {
         )}
         <div>
           <p className="text-sm font-medium text-foreground">
-            Souscription {insurer?.name} —{" "}
+            Souscription {contract.insurerName} —{" "}
             {AUTO_FORMULA_LABELS[contract.formula]}
           </p>
           <p className="text-xs text-muted-foreground">

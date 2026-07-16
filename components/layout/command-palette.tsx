@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -23,9 +24,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useMockUser } from "@/lib/mock-auth";
-import { scopeProspects } from "@/lib/access";
-import { prospects as allProspects } from "@/lib/mock-data";
 import { canManageTeam } from "@/lib/access";
+import { fetchProspects, type ProspectListItem } from "@/lib/data/prospects";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -52,8 +52,15 @@ const PAGES = [
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const { user } = useMockUser();
+  const [prospects, setProspects] = useState<ProspectListItem[]>([]);
 
-  const prospects = scopeProspects(user, allProspects).slice(0, 50);
+  useEffect(() => {
+    if (!open) return;
+    fetchProspects()
+      .then((ps) => setProspects(ps.slice(0, 50)))
+      .catch(() => setProspects([]));
+  }, [open]);
+
   const pages = PAGES.filter((p) => !p.managerOnly || canManageTeam(user));
 
   const go = (href: string) => {

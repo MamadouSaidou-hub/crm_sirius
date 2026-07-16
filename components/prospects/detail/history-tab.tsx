@@ -1,15 +1,14 @@
 "use client";
 
 import { ArrowRight, History } from "lucide-react";
-import type { StageHistoryEntry } from "@/lib/types";
 import { STAGE_LABELS } from "@/lib/constants";
-import { getUserById } from "@/lib/mock-data";
+import type { StageHistoryItem } from "@/lib/data/stage-history";
 import { StageBadge } from "@/components/shared/stage-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { dateTime } from "@/lib/date";
 
-export function HistoryTab({ entries }: { entries: StageHistoryEntry[] }) {
+export function HistoryTab({ entries }: { entries: StageHistoryItem[] }) {
   if (entries.length === 0) {
     return (
       <EmptyState
@@ -23,7 +22,6 @@ export function HistoryTab({ entries }: { entries: StageHistoryEntry[] }) {
   return (
     <ul className="divide-y divide-border rounded-lg border border-border bg-card">
       {entries.map((entry) => {
-        const author = getUserById(entry.changedBy);
         return (
           <li
             key={entry.id}
@@ -40,7 +38,7 @@ export function HistoryTab({ entries }: { entries: StageHistoryEntry[] }) {
             </div>
             <span className="ml-auto text-xs text-muted-foreground">
               {dateTime(entry.changedAt)}
-              {author ? ` · ${author.name}` : ""}
+              {entry.changedByName ? ` · ${entry.changedByName}` : ""}
             </span>
           </li>
         );

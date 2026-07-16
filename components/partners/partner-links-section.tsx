@@ -2,8 +2,6 @@
 
 import { ExternalLink, LayoutDashboard, Link2, Pencil, Share2 } from "lucide-react";
 import type { Insurer } from "@/lib/types";
-import { getInsurerById } from "@/lib/mock-data";
-import { listPartnerLinks, type PartnerLinks } from "@/lib/store/partner-links";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,16 +13,20 @@ import {
 import { CopyButton } from "@/components/shared/copy-button";
 
 interface PartnerLinksSectionProps {
+  insurers: Insurer[];
   canEdit: boolean;
   onEdit: (insurer: Insurer) => void;
 }
 
 export function PartnerLinksSection({
+  insurers,
   canEdit,
   onEdit,
 }: PartnerLinksSectionProps) {
-  const entries = listPartnerLinks();
-  if (entries.length === 0) return null;
+  const withLinks = insurers.filter(
+    (i) => i.subscriptionUrl || i.dashboardUrl,
+  );
+  if (withLinks.length === 0) return null;
 
   return (
     <Card>
@@ -39,43 +41,38 @@ export function PartnerLinksSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {entries.map(({ insurerId, links }) => {
-          const insurer = getInsurerById(insurerId);
-          return (
-            <div
-              key={insurerId}
-              className="rounded-lg border border-border bg-secondary/30 p-4"
-            >
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-medium text-foreground">
-                  {insurer?.name ?? "Partenaire"}
-                </p>
-                {canEdit && insurer && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(insurer)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Modifier
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                <LinkRow
-                  icon={Share2}
-                  label="Souscription (commerciaux)"
-                  url={links.subscriptionUrl}
-                />
-                <LinkRow
-                  icon={LayoutDashboard}
-                  label="Tableau de bord cabinet"
-                  url={links.dashboardUrl}
-                />
-              </div>
+        {withLinks.map((insurer) => (
+          <div
+            key={insurer.id}
+            className="rounded-lg border border-border bg-secondary/30 p-4"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="font-medium text-foreground">{insurer.name}</p>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEdit(insurer)}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Modifier
+                </Button>
+              )}
             </div>
-          );
-        })}
+            <div className="space-y-2">
+              <LinkRow
+                icon={Share2}
+                label="Souscription (commerciaux)"
+                url={insurer.subscriptionUrl}
+              />
+              <LinkRow
+                icon={LayoutDashboard}
+                label="Tableau de bord cabinet"
+                url={insurer.dashboardUrl}
+              />
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

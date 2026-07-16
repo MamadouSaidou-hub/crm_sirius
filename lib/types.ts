@@ -141,6 +141,10 @@ export interface Insurer {
   /** Broker commission rate on the net premium, 0..1. */
   commissionRate: number;
   active: boolean;
+  /** Portal link commercials use to subscribe directly (e.g. NSIA Vie). */
+  subscriptionUrl?: string;
+  /** Broker dashboard link (admin/manager access to the insurer's portal). */
+  dashboardUrl?: string;
 }
 
 /* --- Auto product risk model --------------------------------------- */

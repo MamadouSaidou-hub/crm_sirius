@@ -16,8 +16,16 @@ import {
   Pencil,
   Phone,
 } from "lucide-react";
-import type { Contract, Stage, StageHistoryEntry } from "@/lib/types";
-import { getStageHistoryForProspect } from "@/lib/mock-data";
+import type { Stage } from "@/lib/types";
+import {
+  fetchContractsForProspect,
+  type ContractItem,
+} from "@/lib/data/contracts";
+import {
+  fetchStageHistory,
+  insertStageChange,
+  type StageHistoryItem,
+} from "@/lib/data/stage-history";
 import {
   fetchProspect,
   updateProspectStage,
@@ -41,7 +49,6 @@ import { InteractionsTab } from "@/components/prospects/detail/interactions-tab"
 import { TasksTab } from "@/components/prospects/detail/tasks-tab";
 import { HistoryTab } from "@/components/prospects/detail/history-tab";
 import { ContractsTab } from "@/components/prospects/detail/contracts-tab";
-import { getContractsForProspect } from "@/lib/store/subscriptions";
 import { ProductBadges } from "@/components/shared/product-badges";
 import { formatFCFA } from "@/lib/utils";
 import { daysSince, relativeDate } from "@/lib/date";
@@ -86,10 +93,8 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
   const [stage, setStage] = useState<Stage>(base.stage);
   const [interactions, setInteractions] = useState<InteractionItem[]>([]);
   const [tasks, setTasks] = useState<TaskWithRefs[]>([]);
-  const [history, setHistory] = useState<StageHistoryEntry[]>(() =>
-    getStageHistoryForProspect(id),
-  );
-  const [contracts] = useState<Contract[]>(() => getContractsForProspect(id));
+  const [history, setHistory] = useState<StageHistoryItem[]>([]);
+  const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [lostReason, setLostReason] = useState<string | undefined>(
     base.lostReason,
   );
@@ -101,6 +106,12 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
       .catch(() => {});
     fetchTasksForProspect(id)
       .then((r) => active && setTasks(r))
+      .catch(() => {});
+    fetchContractsForProspect(id)
+      .then((r) => active && setContracts(r))
+      .catch(() => {});
+    fetchStageHistory(id)
+      .then((r) => active && setHistory(r))
       .catch(() => {});
     return () => {
       active = false;
@@ -122,20 +133,25 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
   }, [interactions, base.lastActivityAt]);
 
   const handleStageChange = (next: Stage, reason?: string) => {
+    const from = stage;
     setHistory((prev) => [
       {
         id: `sh-new-${Date.now()}`,
         prospectId: id,
-        from: stage,
+        from,
         to: next,
         changedBy: user.id,
         changedAt: new Date().toISOString(),
+        changedByName: user.name,
       },
       ...prev,
     ]);
     setStage(next);
     setLostReason(next === "lost" ? reason : undefined);
-    updateProspectStage(id, next, reason).catch(() =>
+    Promise.all([
+      updateProspectStage(id, next, reason),
+      insertStageChange(id, from, next, user.id),
+    ]).catch(() =>
       toast.error("Le changement de stage n'a pas pu être enregistré."),
     );
   };

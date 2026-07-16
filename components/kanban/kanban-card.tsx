@@ -3,8 +3,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Phone } from "lucide-react";
-import type { Prospect } from "@/lib/types";
-import { getUserById } from "@/lib/mock-data";
+import type { ProspectListItem } from "@/lib/data/prospects";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { PRODUCT_LABELS } from "@/lib/constants";
@@ -13,15 +12,13 @@ import { relativeDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 interface KanbanCardProps {
-  prospect: Prospect;
+  prospect: ProspectListItem;
   overlay?: boolean;
 }
 
 export function KanbanCard({ prospect, overlay = false }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: prospect.id, data: { stage: prospect.stage } });
-
-  const assignee = getUserById(prospect.assignedTo);
 
   return (
     <div
@@ -66,10 +63,10 @@ export function KanbanCard({ prospect, overlay = false }: KanbanCardProps) {
         <span className="text-sm font-semibold text-sirius-gold">
           {formatFCFACompact(prospect.estimatedPremium)}
         </span>
-        {assignee && (
+        {prospect.assigneeRole && (
           <UserAvatar
-            name={assignee.name}
-            role={assignee.role}
+            name={prospect.assigneeName}
+            role={prospect.assigneeRole}
             className="h-6 w-6 text-[9px]"
           />
         )}

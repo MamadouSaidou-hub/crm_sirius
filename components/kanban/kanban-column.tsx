@@ -1,15 +1,16 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import type { Prospect, Stage } from "@/lib/types";
+import type { Stage } from "@/lib/types";
 import { STAGE_LABELS } from "@/lib/constants";
+import type { ProspectListItem } from "@/lib/data/prospects";
 import { KanbanCard } from "@/components/kanban/kanban-card";
 import { formatFCFACompact } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface KanbanColumnProps {
   stage: Stage;
-  prospects: Prospect[];
+  prospects: ProspectListItem[];
 }
 
 const COLUMN_TONE: Partial<Record<Stage, string>> = {

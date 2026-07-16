@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Insurer } from "@/lib/types";
-import { getPartnerLinks, setPartnerLinks } from "@/lib/store/partner-links";
+import { updateInsurerLinks } from "@/lib/data/insurers";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -32,18 +32,21 @@ export function EditLinksDialog({
 
   useEffect(() => {
     if (target) {
-      const current = getPartnerLinks(target.id);
-      setSubscriptionUrl(current.subscriptionUrl ?? "");
-      setDashboardUrl(current.dashboardUrl ?? "");
+      setSubscriptionUrl(target.subscriptionUrl ?? "");
+      setDashboardUrl(target.dashboardUrl ?? "");
     }
   }, [target]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!target) return;
-    setPartnerLinks(target.id, { subscriptionUrl, dashboardUrl });
-    toast.success("Liens mis à jour", { description: target.name });
-    onSaved();
-    onOpenChange(false);
+    try {
+      await updateInsurerLinks(target.id, subscriptionUrl, dashboardUrl);
+      toast.success("Liens mis à jour", { description: target.name });
+      onSaved();
+      onOpenChange(false);
+    } catch {
+      toast.error("Enregistrement impossible. Vérifiez vos droits.");
+    }
   };
 
   return (

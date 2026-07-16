@@ -1,9 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
-import type { City, ProductType, Prospect, Stage } from "@/lib/types";
+import type {
+  City,
+  ProductType,
+  Prospect,
+  Stage,
+  UserRole,
+} from "@/lib/types";
 
-/** A prospect enriched with its assignee's display name. */
+/** A prospect enriched with its assignee's display name and role. */
 export interface ProspectListItem extends Prospect {
   assigneeName: string;
+  assigneeRole: UserRole | null;
 }
 
 interface ProspectRow {
@@ -22,16 +29,18 @@ interface ProspectRow {
   lost_reason: string | null;
   created_at: string;
   last_activity_at: string;
-  assignee: { name: string } | { name: string }[] | null;
+  assignee:
+    | { name: string; role: UserRole }
+    | { name: string; role: UserRole }[]
+    | null;
 }
 
 const COLS =
   "id,name,phone,email,cni,address,city,products,estimated_premium,stage,assigned_to,notes,lost_reason,created_at,last_activity_at";
-const COLS_WITH_ASSIGNEE = `${COLS},assignee:profiles!assigned_to(name)`;
+const COLS_WITH_ASSIGNEE = `${COLS},assignee:profiles!assigned_to(name,role)`;
 
-function assigneeName(a: ProspectRow["assignee"]): string {
-  if (!a) return "—";
-  return Array.isArray(a) ? (a[0]?.name ?? "—") : a.name;
+function firstAssignee(a: ProspectRow["assignee"]) {
+  return Array.isArray(a) ? (a[0] ?? null) : a;
 }
 
 function mapProspect(row: ProspectRow): ProspectListItem {
@@ -51,7 +60,8 @@ function mapProspect(row: ProspectRow): ProspectListItem {
     lostReason: row.lost_reason ?? undefined,
     createdAt: row.created_at,
     lastActivityAt: row.last_activity_at,
-    assigneeName: assigneeName(row.assignee),
+    assigneeName: firstAssignee(row.assignee)?.name ?? "—",
+    assigneeRole: firstAssignee(row.assignee)?.role ?? null,
   };
 }
 

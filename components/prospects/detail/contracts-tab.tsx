@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
-import type { Contract } from "@/lib/types";
 import {
   AUTO_FORMULA_LABELS,
   CONTRACT_STATUS_BADGE_VARIANT,
@@ -10,7 +9,7 @@ import {
   INTEGRATION_MODE_LABELS,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/constants";
-import { getInsurerById } from "@/lib/mock-data";
+import type { ContractItem } from "@/lib/data/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +19,7 @@ import { fullDate } from "@/lib/date";
 
 interface ContractsTabProps {
   prospectId: string;
-  contracts: Contract[];
+  contracts: ContractItem[];
 }
 
 export function ContractsTab({ prospectId, contracts }: ContractsTabProps) {
@@ -57,22 +56,21 @@ export function ContractsTab({ prospectId, contracts }: ContractsTabProps) {
   );
 }
 
-function ContractRow({ contract }: { contract: Contract }) {
-  const insurer = getInsurerById(contract.insurerId);
+function ContractRow({ contract }: { contract: ContractItem }) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium text-foreground">
-              {insurer?.name ?? "Assureur"}
+              {contract.insurerName ?? "Assureur"}
             </p>
             <Badge variant={CONTRACT_STATUS_BADGE_VARIANT[contract.status]}>
               {CONTRACT_STATUS_LABELS[contract.status]}
             </Badge>
-            {insurer && (
+            {contract.integrationMode && (
               <span className="text-xs text-muted-foreground">
-                {INTEGRATION_MODE_LABELS[insurer.integrationMode]}
+                {INTEGRATION_MODE_LABELS[contract.integrationMode]}
               </span>
             )}
           </div>
