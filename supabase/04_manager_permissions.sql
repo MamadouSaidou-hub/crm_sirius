@@ -10,5 +10,5 @@
 
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles for update
-  using (public.can_see_user(id))
+  using (public.can_see_user(id))/
   with check (public.can_see_user(id));

@@ -105,7 +105,7 @@ export function ManagerPerformance({ user, period }: ManagerPerformanceProps) {
   return (
     <div className="space-y-6">
       <ObjectiveProgress
-        title="Objectif équipe ce mois"
+        title="Réalisé équipe ce mois"
         target={teamObjective}
         realized={teamRealized}
         pending={teamPending}

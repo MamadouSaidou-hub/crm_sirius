@@ -95,7 +95,7 @@ export function AdminPerformance({ user, period }: AdminPerformanceProps) {
   return (
     <div className="space-y-6">
       <ObjectiveProgress
-        title="Objectif cabinet ce mois"
+        title="Réalisé cabinet ce mois"
         target={cabinetObjective}
         realized={cabinetRealized}
         pending={cabinetPending}
