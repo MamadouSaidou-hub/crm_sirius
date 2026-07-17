@@ -100,7 +100,7 @@ export function RapatriementForm({ onSimulate }: RapatriementFormProps) {
         </CardContent>
       </Card>
       <div className="flex justify-end">
-        <Button type="submit" size="lg">
+        <Button type="submit" size="lg" className="w-full sm:w-auto">
           Simuler
         </Button>
       </div>

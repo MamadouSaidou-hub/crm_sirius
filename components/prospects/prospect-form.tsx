@@ -271,16 +271,21 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button
           type="button"
           variant="ghost"
           onClick={() => router.back()}
           disabled={submitting}
+          className="w-full sm:w-auto"
         >
           Annuler
         </Button>
-        <Button type="submit" disabled={submitting}>
+        <Button
+          type="submit"
+          disabled={submitting}
+          className="w-full sm:w-auto"
+        >
           {isEdit ? "Enregistrer les modifications" : "Créer le prospect"}
         </Button>
       </div>

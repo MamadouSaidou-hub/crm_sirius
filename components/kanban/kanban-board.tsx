@@ -87,6 +87,23 @@ export function KanbanBoard() {
     persistStage(prospectId, stage);
   };
 
+  /** Tap-based stage move (kanban card menu), mirroring the drag rules. */
+  const handleMove = (prospectId: string, targetStage: Stage) => {
+    if (targetStage === "lost") {
+      const prospect = (items ?? []).find((p) => p.id === prospectId);
+      if (prospect) setPendingLost(prospect);
+      return;
+    }
+    moveToStage(prospectId, targetStage);
+    if (targetStage === "won") {
+      toast.success("🎉 Prospect gagné !");
+    } else {
+      toast.success("Stage mis à jour", {
+        description: `Déplacé vers « ${STAGE_LABELS[targetStage]} ».`,
+      });
+    }
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
   };
@@ -153,7 +170,12 @@ export function KanbanBoard() {
       >
         <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-4">
           {STAGES.map((stage) => (
-            <KanbanColumn key={stage} stage={stage} prospects={byStage(stage)} />
+            <KanbanColumn
+              key={stage}
+              stage={stage}
+              prospects={byStage(stage)}
+              onMove={handleMove}
+            />
           ))}
         </div>
 

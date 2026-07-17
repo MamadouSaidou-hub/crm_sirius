@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface KanbanColumnProps {
   stage: Stage;
   prospects: ProspectListItem[];
+  onMove?: (prospectId: string, stage: Stage) => void;
 }
 
 const COLUMN_TONE: Partial<Record<Stage, string>> = {
@@ -18,7 +19,7 @@ const COLUMN_TONE: Partial<Record<Stage, string>> = {
   lost: "bg-sirius-danger/5 border-sirius-danger/30",
 };
 
-export function KanbanColumn({ stage, prospects }: KanbanColumnProps) {
+export function KanbanColumn({ stage, prospects, onMove }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const total = prospects.reduce((sum, p) => sum + p.estimatedPremium, 0);
 
@@ -51,7 +52,9 @@ export function KanbanColumn({ stage, prospects }: KanbanColumnProps) {
             Aucun prospect
           </p>
         ) : (
-          prospects.map((p) => <KanbanCard key={p.id} prospect={p} />)
+          prospects.map((p) => (
+            <KanbanCard key={p.id} prospect={p} onMove={onMove} />
+          ))
         )}
       </div>
     </div>

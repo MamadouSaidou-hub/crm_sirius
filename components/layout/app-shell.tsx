@@ -27,6 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Collapse the sidebar to an icon rail on tablet widths, expand on desktop.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    const apply = () => setCollapsed(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   useEffect(() => {
     let active = true;
     fetchTasks()
