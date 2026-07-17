@@ -44,7 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Compagnies",
     href: "/partners",
     icon: Building2,
-    roles: ["admin", "manager"],
+    roles: ["admin"],
   },
   { label: "Paramètres", href: "/settings", icon: Settings },
 ];

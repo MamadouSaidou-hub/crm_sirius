@@ -7,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { User, UserRole } from "@/lib/types";
 import { ROLE_LABELS } from "@/lib/constants";
+import { useMockUser } from "@/lib/mock-auth";
 import { fetchManagers } from "@/lib/data/profiles";
 import { createUser, updateUserProfile } from "@/lib/data/users";
 import { Button } from "@/components/ui/button";
@@ -70,12 +71,17 @@ export function UserFormDialog({
   user,
   onSaved,
 }: UserFormDialogProps) {
+  const { user: currentUser } = useMockUser();
+  // A manager can only create/manage commercials tied to themselves — the role
+  // and manager fields are locked and hidden for them.
+  const isManagerCreator = currentUser.role === "manager";
   const [managers, setManagers] = useState<User[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (open) fetchManagers().then(setManagers).catch(() => setManagers([]));
-  }, [open]);
+    if (open && !isManagerCreator)
+      fetchManagers().then(setManagers).catch(() => setManagers([]));
+  }, [open, isManagerCreator]);
 
   const {
     register,
@@ -102,19 +108,26 @@ export function UserFormDialog({
       reset({
         name: user?.name ?? "",
         email: user?.email ?? "",
-        role: user?.role ?? "commercial",
-        managerId: user?.managerId ?? "",
-        agency: user?.agency ?? "Agence Dakar Plateau",
+        role: isManagerCreator ? "commercial" : user?.role ?? "commercial",
+        managerId: isManagerCreator
+          ? currentUser.id
+          : user?.managerId ?? "",
+        agency: user?.agency ?? currentUser.agency ?? "Agence Dakar Plateau",
         phone: user?.phone ?? "+221 ",
         password: "",
       });
     }
-  }, [open, user, reset]);
+  }, [open, user, reset, isManagerCreator, currentUser.id, currentUser.agency]);
 
   const role = watch("role");
   const managerId = watch("managerId");
 
   const onSubmit = async (values: FormValues) => {
+    // Managers can only ever produce commercials attached to themselves.
+    if (isManagerCreator) {
+      values.role = "commercial";
+      values.managerId = currentUser.id;
+    }
     setSubmitting(true);
     try {
       if (mode === "invite") {
@@ -184,49 +197,50 @@ export function UserFormDialog({
                 className={mode === "edit" ? "opacity-70" : undefined}
               />
             </Field>
-            <Field label="Rôle" error={errors.role?.message}>
-              <Select
-                value={role}
-                onValueChange={(v) => setValue("role", v as UserRole)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field
-              label="Manager"
-              error={errors.managerId?.message}
-            >
-              <Select
-                value={managerId || "none"}
-                onValueChange={(v) =>
-                  setValue("managerId", v === "none" ? "" : v, {
-                    shouldValidate: true,
-                  })
-                }
-                disabled={role !== "commercial"}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Aucun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {managers.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            {!isManagerCreator && (
+              <>
+                <Field label="Rôle" error={errors.role?.message}>
+                  <Select
+                    value={role}
+                    onValueChange={(v) => setValue("role", v as UserRole)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {ROLE_LABELS[r]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Manager" error={errors.managerId?.message}>
+                  <Select
+                    value={managerId || "none"}
+                    onValueChange={(v) =>
+                      setValue("managerId", v === "none" ? "" : v, {
+                        shouldValidate: true,
+                      })
+                    }
+                    disabled={role !== "commercial"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Aucun" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+                      {managers.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </>
+            )}
             <Field label="Agence" error={errors.agency?.message}>
               <Input {...register("agency")} />
             </Field>

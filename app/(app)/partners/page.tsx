@@ -5,7 +5,6 @@ import { Building2, Loader2, Plug, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { Insurer } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
-import { canManageTeam } from "@/lib/access";
 import { fetchInsurers, setInsurerActive } from "@/lib/data/insurers";
 import { PageHeader } from "@/components/shared/page-header";
 import { Forbidden } from "@/components/shared/forbidden";
@@ -20,7 +19,7 @@ export default function PartnersPage() {
   const [list, setList] = useState<Insurer[] | null>(null);
   const [linksTarget, setLinksTarget] = useState<Insurer | null>(null);
 
-  const allowed = canManageTeam(user);
+  const allowed = user.role === "admin";
 
   useEffect(() => {
     if (!allowed) return;
@@ -35,7 +34,7 @@ export default function PartnersPage() {
 
   if (!allowed) {
     return (
-      <Forbidden message="La gestion des compagnies partenaires est réservée aux administrateurs et managers." />
+      <Forbidden message="La gestion des compagnies partenaires est réservée aux administrateurs." />
     );
   }
 

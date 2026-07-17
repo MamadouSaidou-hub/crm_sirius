@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import type { Objective, User } from "@/lib/types";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
@@ -127,8 +128,19 @@ export function ManagerPerformance({ user, period }: ManagerPerformanceProps) {
         </h3>
         {rows.length === 0 ? (
           <Card>
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              Aucun commercial rattaché.
+            <CardContent className="flex flex-col items-start gap-3 p-6 text-sm text-muted-foreground">
+              <p>
+                Aucun commercial rattaché. Créez vos commerciaux dans
+                l&apos;Équipe pour leur fixer un objectif via le bouton
+                «&nbsp;Objectif&nbsp;».
+              </p>
+              <Link
+                href="/users"
+                className="inline-flex items-center gap-2 rounded-md bg-sirius-gold px-3 py-1.5 text-sm font-medium text-sirius-ink transition-opacity hover:opacity-90"
+              >
+                <UsersRound className="h-4 w-4" />
+                Créer un commercial
+              </Link>
             </CardContent>
           </Card>
         ) : (

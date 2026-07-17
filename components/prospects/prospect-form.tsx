@@ -147,15 +147,6 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
           <Field label="Téléphone" error={errors.phone?.message}>
             <Input {...register("phone")} placeholder="+221 77 123 45 67" />
           </Field>
-          <Field label="Email" error={errors.email?.message}>
-            <Input {...register("email")} placeholder="awa.diop@gmail.com" />
-          </Field>
-          <Field label="CNI">
-            <Input {...register("cni")} placeholder="1 234 1990 56789" />
-          </Field>
-          <Field label="Adresse">
-            <Input {...register("address")} placeholder="12 Rue Diop" />
-          </Field>
           <Field label="Ville" required>
             <Select
               value={city}
@@ -175,6 +166,19 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
               </SelectContent>
             </Select>
           </Field>
+          {isEdit && (
+            <>
+              <Field label="Email" error={errors.email?.message}>
+                <Input {...register("email")} placeholder="awa.diop@gmail.com" />
+              </Field>
+              <Field label="CNI">
+                <Input {...register("cni")} placeholder="1 234 1990 56789" />
+              </Field>
+              <Field label="Adresse">
+                <Input {...register("address")} placeholder="12 Rue Diop" />
+              </Field>
+            </>
+          )}
         </CardContent>
       </Card>
 

@@ -14,6 +14,7 @@ import {
   User as UserIcon,
   Users,
   UsersRound,
+  type LucideIcon,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -32,7 +33,15 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const PAGES = [
+interface PageItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  managerOnly?: boolean;
+  adminOnly?: boolean;
+}
+
+const PAGES: PageItem[] = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { label: "Prospects", href: "/prospects", icon: Users },
   { label: "Pipeline", href: "/prospects/kanban", icon: KanbanSquare },
@@ -44,7 +53,7 @@ const PAGES = [
     label: "Compagnies",
     href: "/partners",
     icon: Building2,
-    managerOnly: true,
+    adminOnly: true,
   },
   { label: "Paramètres", href: "/settings", icon: Settings },
 ];
@@ -61,7 +70,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       .catch(() => setProspects([]));
   }, [open]);
 
-  const pages = PAGES.filter((p) => !p.managerOnly || canManageTeam(user));
+  const pages = PAGES.filter(
+    (p) =>
+      (!p.managerOnly || canManageTeam(user)) &&
+      (!p.adminOnly || user.role === "admin"),
+  );
 
   const go = (href: string) => {
     onOpenChange(false);

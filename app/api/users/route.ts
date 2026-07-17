@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Create a cabinet user. Admin-only: the caller's session is checked, then the
+ * Create a cabinet user. Admins can create any role; managers can only create
+ * commercials attached to themselves. The caller's session is checked, then the
  * account is created with the service_role key (Auth admin API) and its profile
  * updated with the chosen role / manager / agency / phone.
  */
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
     .select("role")
     .eq("id", user.id)
     .single();
-  if (profile?.role !== "admin") {
+  const callerRole = profile?.role;
+  if (callerRole !== "admin" && callerRole !== "manager") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -39,9 +41,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
-  const { name, email, password, role, managerId, agency, phone } = body;
+  let { role, managerId } = body;
+  const { name, email, password, agency, phone } = body;
   if (!name || !email || !password || !role) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+  }
+
+  // A manager may only create commercials, always tied to themselves.
+  if (callerRole === "manager") {
+    if (role !== "commercial") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    managerId = user.id;
   }
 
   const admin = createAdminClient();

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, UsersRound } from "lucide-react";
 import type { Objective, User } from "@/lib/types";
+import { Card, CardContent } from "@/components/ui/card";
 import { fetchAllCommercials, fetchManagers } from "@/lib/data/profiles";
 import {
   commissionSum,
@@ -121,11 +123,30 @@ export function AdminPerformance({ user, period }: AdminPerformanceProps) {
         <h3 className="font-heading text-base font-semibold text-foreground">
           Managers
         </h3>
-        <TeamPerformanceTable
-          rows={rows}
-          showCommission
-          onSetObjective={setObjectiveTarget}
-        />
+        {rows.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-start gap-3 p-6 text-sm text-muted-foreground">
+              <p>
+                Aucun manager pour l&apos;instant. Créez d&apos;abord vos
+                managers et leurs commerciaux, puis revenez ici pour leur fixer
+                un objectif via le bouton «&nbsp;Objectif&nbsp;».
+              </p>
+              <Link
+                href="/users"
+                className="inline-flex items-center gap-2 rounded-md bg-sirius-gold px-3 py-1.5 text-sm font-medium text-sirius-ink transition-opacity hover:opacity-90"
+              >
+                <UsersRound className="h-4 w-4" />
+                Gérer l&apos;équipe
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <TeamPerformanceTable
+            rows={rows}
+            showCommission
+            onSetObjective={setObjectiveTarget}
+          />
+        )}
       </div>
 
       <SetObjectiveDialog
