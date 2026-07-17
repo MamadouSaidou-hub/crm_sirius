@@ -7,7 +7,6 @@ import type { Objective, User } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchAllCommercials, fetchManagers } from "@/lib/data/profiles";
 import {
-  commissionSum,
   fetchObjectives,
   fetchRealizations,
   objectiveAmount,
@@ -15,10 +14,7 @@ import {
   type RealizationItem,
 } from "@/lib/data/performance";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
-import {
-  TeamPerformanceTable,
-  type PerformanceRow,
-} from "@/components/performance/team-performance-table";
+import { ManagerObjectiveCard } from "@/components/performance/manager-objective-card";
 import { SetObjectiveDialog } from "@/components/performance/set-objective-dialog";
 
 interface AdminPerformanceProps {
@@ -74,41 +70,27 @@ export function AdminPerformance({ user, period }: AdminPerformanceProps) {
 
   const { managers, commercials, objectives, realizations } = data;
 
-  // Commercial ids grouped by their manager.
-  const teamByManager = new Map<string, string[]>();
+  // Commercials grouped by their manager.
+  const commercialsByManager = new Map<string, User[]>();
   for (const c of commercials) {
     if (!c.managerId) continue;
-    const arr = teamByManager.get(c.managerId) ?? [];
-    arr.push(c.id);
-    teamByManager.set(c.managerId, arr);
+    const arr = commercialsByManager.get(c.managerId) ?? [];
+    arr.push(c);
+    commercialsByManager.set(c.managerId, arr);
   }
 
-  const rows: PerformanceRow[] = managers.map((m) => {
-    const ids = teamByManager.get(m.id) ?? [];
-    const realized = ids.reduce(
-      (s, cid) => s + realizedSum(realizations, cid, ["validated"]),
-      0,
-    );
-    const pending = ids.reduce(
-      (s, cid) => s + realizedSum(realizations, cid, ["pending"]),
-      0,
-    );
-    const commission = ids.reduce(
-      (s, cid) => s + commissionSum(realizations, cid),
-      0,
-    );
-    return {
-      user: m,
-      target: objectiveAmount(objectives, m.id),
-      realized,
-      pending,
-      commission,
-    };
-  });
-
-  const cabinetObjective = rows.reduce((s, r) => s + r.target, 0);
-  const cabinetRealized = rows.reduce((s, r) => s + r.realized, 0);
-  const cabinetPending = rows.reduce((s, r) => s + (r.pending ?? 0), 0);
+  const cabinetObjective = managers.reduce(
+    (s, m) => s + objectiveAmount(objectives, m.id),
+    0,
+  );
+  const cabinetRealized = commercials.reduce(
+    (s, c) => s + realizedSum(realizations, c.id, ["validated"]),
+    0,
+  );
+  const cabinetPending = commercials.reduce(
+    (s, c) => s + realizedSum(realizations, c.id, ["pending"]),
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -121,15 +103,15 @@ export function AdminPerformance({ user, period }: AdminPerformanceProps) {
 
       <div className="space-y-3">
         <h3 className="font-heading text-base font-semibold text-foreground">
-          Managers
+          Managers & cascade des objectifs
         </h3>
-        {rows.length === 0 ? (
+        {managers.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-start gap-3 p-6 text-sm text-muted-foreground">
               <p>
                 Aucun manager pour l&apos;instant. Créez d&apos;abord vos
-                managers et leurs commerciaux, puis revenez ici pour leur fixer
-                un objectif via le bouton «&nbsp;Objectif&nbsp;».
+                managers et leurs commerciaux, puis fixez la cible du manager et
+                répartissez-la sur ses commerciaux.
               </p>
               <Link
                 href="/users"
@@ -141,11 +123,18 @@ export function AdminPerformance({ user, period }: AdminPerformanceProps) {
             </CardContent>
           </Card>
         ) : (
-          <TeamPerformanceTable
-            rows={rows}
-            showCommission
-            onSetObjective={setObjectiveTarget}
-          />
+          <div className="space-y-4">
+            {managers.map((m) => (
+              <ManagerObjectiveCard
+                key={m.id}
+                manager={m}
+                commercials={commercialsByManager.get(m.id) ?? []}
+                objectives={objectives}
+                realizations={realizations}
+                onSetObjective={setObjectiveTarget}
+              />
+            ))}
+          </div>
         )}
       </div>
 

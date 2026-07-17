@@ -200,6 +200,20 @@ export function objectiveAmount(
   return objectives.find((o) => o.userId === userId)?.targetAmount ?? 0;
 }
 
+/**
+ * Sum of the objectives assigned to a set of users — used to reconcile a
+ * manager's target (cible) against what has been distributed to their team.
+ */
+export function distributedAmount(
+  objectives: Objective[],
+  userIds: string[],
+): number {
+  const set = new Set(userIds);
+  return objectives
+    .filter((o) => set.has(o.userId))
+    .reduce((s, o) => s + o.targetAmount, 0);
+}
+
 export function realizedSum(
   realizations: Realization[],
   commercialId: string,

@@ -8,6 +8,7 @@ import type { Objective, User } from "@/lib/types";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import {
   commissionSum,
+  distributedAmount,
   fetchObjectives,
   fetchRealizations,
   objectiveAmount,
@@ -17,6 +18,7 @@ import {
   type RealizationItem,
 } from "@/lib/data/performance";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
+import { ObjectiveReconciliation } from "@/components/performance/objective-reconciliation";
 import {
   TeamPerformanceTable,
   type PerformanceRow,
@@ -80,6 +82,10 @@ export function ManagerPerformance({ user, period }: ManagerPerformanceProps) {
   const teamRealized = rows.reduce((s, r) => s + r.realized, 0);
   const teamPending = rows.reduce((s, r) => s + (r.pending ?? 0), 0);
   const teamObjective = objectiveAmount(objectives, user.id);
+  const distributed = distributedAmount(
+    objectives,
+    commercials.map((c) => c.id),
+  );
   const pending = pendingItems(
     realizations,
     commercials.map((c) => c.id),
@@ -104,6 +110,8 @@ export function ManagerPerformance({ user, period }: ManagerPerformanceProps) {
         realized={teamRealized}
         pending={teamPending}
       />
+
+      <ObjectiveReconciliation target={teamObjective} distributed={distributed} />
 
       {pending.length > 0 && (
         <div className="space-y-3">
