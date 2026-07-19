@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { User, UserRole } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+import { isNetworkError, isOnline } from "@/lib/offline/net";
+import {
+  clearCachedProfile,
+  readCachedProfile,
+  writeCachedProfile,
+} from "@/lib/offline/session-cache";
 
 /**
  * Real authentication context, backed by Supabase.
@@ -54,30 +60,57 @@ export function MockUserProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let active = true;
 
-    async function load() {
+    // Instant paint: show the cached profile immediately (no network), so
+    // returning users skip the auth spinner and offline reopens still work.
+    const cached = readCachedProfile();
+    if (cached && active) setUser(cached);
+
+    async function reconcile() {
       const {
         data: { user: authUser },
+        error,
       } = await supabase.auth.getUser();
-      if (!authUser) {
-        router.replace("/login");
+
+      // Server-validated session: refresh the profile and cache it.
+      if (authUser) {
+        const { data } = await supabase
+          .from("profiles")
+          .select(
+            "id,name,email,phone,role,manager_id,agency,active,last_login_at",
+          )
+          .eq("id", authUser.id)
+          .single();
+        if (data) {
+          const fresh = toUser(data as ProfileRow);
+          writeCachedProfile(fresh);
+          if (active) setUser(fresh);
+        } else if (!cached) {
+          router.replace("/login");
+        }
         return;
       }
-      const { data } = await supabase
-        .from("profiles")
-        .select(
-          "id,name,email,phone,role,manager_id,agency,active,last_login_at",
-        )
-        .eq("id", authUser.id)
-        .single();
-      if (active && data) setUser(toUser(data as ProfileRow));
+
+      // No validated user. If we're merely offline and hold a cached profile
+      // (i.e. we DID log in successfully before), stay signed in on the cache.
+      if (!isOnline() || isNetworkError(error)) {
+        if (!cached) router.replace("/login");
+        return;
+      }
+
+      // Online and genuinely unauthenticated: drop the cache and sign out.
+      clearCachedProfile();
+      router.replace("/login");
     }
 
-    load();
+    reconcile();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") router.replace("/login");
+      if (event === "SIGNED_OUT") {
+        clearCachedProfile();
+        router.replace("/login");
+      }
     });
 
     return () => {
@@ -87,6 +120,7 @@ export function MockUserProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, router]);
 
   const signOut = React.useCallback(async () => {
+    clearCachedProfile();
     await supabase.auth.signOut();
     router.replace("/login");
   }, [supabase, router]);

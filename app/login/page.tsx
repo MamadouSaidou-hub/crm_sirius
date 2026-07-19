@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { isNetworkError } from "@/lib/offline/net";
 import { LogoFull } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,10 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setError("Connexion impossible hors-ligne. Reconnectez-vous à Internet.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -33,7 +38,11 @@ export default function LoginPage() {
       password,
     });
     if (error) {
-      setError("Email ou mot de passe incorrect.");
+      setError(
+        isNetworkError(error)
+          ? "Réseau indisponible. Vérifiez votre connexion et réessayez."
+          : "Email ou mot de passe incorrect.",
+      );
       setLoading(false);
       return;
     }
