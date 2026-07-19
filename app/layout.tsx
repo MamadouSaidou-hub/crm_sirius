@@ -24,6 +24,13 @@ export const metadata: Metadata = {
     "Prototype CRM pour cabinet de courtage en assurance. Dakar, Sénégal.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "SIRIUS CRM", statusBarStyle: "black" },
+  icons: {
+    icon: [
+      { url: "/sirius-mark.png", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/sirius-mark.png",
+  },
 };
 
 export const viewport: Viewport = {

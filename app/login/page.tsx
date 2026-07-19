@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Logo } from "@/components/shared/logo";
+import { LogoFull } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,7 +52,7 @@ export default function LoginPage() {
       />
       <Card className="z-10 w-full max-w-md border-border bg-sirius-muted/80 shadow-xl backdrop-blur">
         <CardHeader className="items-center space-y-3 text-center">
-          <Logo className="text-2xl" />
+          <LogoFull />
           <div className="space-y-1">
             <CardTitle className="text-xl">Connexion</CardTitle>
             <CardDescription>Accédez à votre espace de courtage</CardDescription>
