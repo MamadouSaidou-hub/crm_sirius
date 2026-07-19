@@ -1,3 +1,4 @@
+import { startOfDay } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskType } from "@/lib/types";
 
@@ -98,6 +99,22 @@ export async function createTask(
     .single();
   if (error) throw error;
   return mapRow(data as unknown as Row);
+}
+
+/**
+ * Count pending tasks due before today (overdue) for the notification badge.
+ * Uses a head+count query so no rows are transferred — much cheaper than
+ * fetching every task and filtering client-side. RLS scopes it to the user.
+ */
+export async function countOverdueTasks(): Promise<number> {
+  const supabase = createClient();
+  const { count, error } = await supabase
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .lt("due_date", startOfDay(new Date()).toISOString());
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function setTaskStatus(

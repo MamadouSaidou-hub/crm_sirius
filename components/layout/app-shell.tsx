@@ -7,8 +7,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { OfflineBanner } from "@/components/offline/offline-banner";
-import { fetchTasks } from "@/lib/data/tasks";
-import { isOverdue } from "@/lib/date";
+import { countOverdueTasks } from "@/lib/data/tasks";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -39,13 +38,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    fetchTasks()
-      .then((tasks) => {
-        if (!active) return;
-        setNotificationCount(
-          tasks.filter((t) => t.status === "pending" && isOverdue(t.dueDate))
-            .length,
-        );
+    countOverdueTasks()
+      .then((n) => {
+        if (active) setNotificationCount(n);
       })
       .catch(() => {});
     return () => {
