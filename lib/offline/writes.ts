@@ -1,5 +1,7 @@
 import {
   createProspect,
+  updateProspect,
+  updateProspectStage,
   type ProspectInput,
 } from "@/lib/data/prospects";
 import {
@@ -12,7 +14,8 @@ import {
   createInteraction,
   type InteractionInput,
 } from "@/lib/data/interactions";
-import type { TaskStatus } from "@/lib/types";
+import { insertStageChange } from "@/lib/data/stage-history";
+import type { Stage, TaskStatus } from "@/lib/types";
 import { isNetworkError, isOnline } from "./net";
 import { enqueue } from "./outbox";
 
@@ -41,6 +44,51 @@ export async function submitProspect(
     `Prospect « ${input.name} »`,
   );
   return { id, queued: true };
+}
+
+export async function submitProspectUpdate(
+  id: string,
+  input: ProspectInput,
+): Promise<{ queued: boolean }> {
+  if (isOnline()) {
+    try {
+      await updateProspect(id, input);
+      return { queued: false };
+    } catch (e) {
+      if (!isNetworkError(e)) throw e;
+    }
+  }
+  await enqueue(
+    { kind: "update_prospect", id, input },
+    `Prospect « ${input.name} » (modification)`,
+  );
+  return { queued: true };
+}
+
+export async function submitProspectStage(params: {
+  id: string;
+  from: Stage | null;
+  to: Stage;
+  changedBy: string;
+  lostReason?: string;
+}): Promise<{ queued: boolean }> {
+  const { id, from, to, changedBy, lostReason } = params;
+  if (isOnline()) {
+    try {
+      await Promise.all([
+        updateProspectStage(id, to, lostReason),
+        insertStageChange(id, from, to, changedBy),
+      ]);
+      return { queued: false };
+    } catch (e) {
+      if (!isNetworkError(e)) throw e;
+    }
+  }
+  await enqueue(
+    { kind: "set_prospect_stage", id, from, to, changedBy, lostReason },
+    "Changement de stage",
+  );
+  return { queued: true };
 }
 
 export async function submitTask(

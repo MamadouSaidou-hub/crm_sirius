@@ -23,12 +23,10 @@ import {
 } from "@/lib/data/contracts";
 import {
   fetchStageHistory,
-  insertStageChange,
   type StageHistoryItem,
 } from "@/lib/data/stage-history";
 import {
   fetchProspect,
-  updateProspectStage,
   type ProspectListItem,
 } from "@/lib/data/prospects";
 import {
@@ -39,7 +37,7 @@ import {
   fetchTasksForProspect,
   type TaskWithRefs,
 } from "@/lib/data/tasks";
-import { submitTaskStatus } from "@/lib/offline/writes";
+import { submitProspectStage, submitTaskStatus } from "@/lib/offline/writes";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -148,10 +146,13 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
     ]);
     setStage(next);
     setLostReason(next === "lost" ? reason : undefined);
-    Promise.all([
-      updateProspectStage(id, next, reason),
-      insertStageChange(id, from, next, user.id),
-    ]).catch(() =>
+    submitProspectStage({
+      id,
+      from,
+      to: next,
+      changedBy: user.id,
+      lostReason: reason,
+    }).catch(() =>
       toast.error("Le changement de stage n'a pas pu être enregistré."),
     );
   };

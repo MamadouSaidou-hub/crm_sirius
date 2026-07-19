@@ -1,9 +1,14 @@
 import { offlineDb } from "./db";
 import { isNetworkError } from "./net";
 import type { OutboxItem, OutboxOp } from "./types";
-import { createProspect } from "@/lib/data/prospects";
+import {
+  createProspect,
+  updateProspect,
+  updateProspectStage,
+} from "@/lib/data/prospects";
 import { createTask, setTaskStatus } from "@/lib/data/tasks";
 import { createInteraction } from "@/lib/data/interactions";
+import { insertStageChange } from "@/lib/data/stage-history";
 
 /** Fired whenever the queue changes, so the sync UI can refresh its count. */
 export const OUTBOX_EVENT = "sirius:outbox-changed";
@@ -39,6 +44,13 @@ async function apply(op: OutboxOp): Promise<void> {
   switch (op.kind) {
     case "create_prospect":
       await createProspect(op.input, op.id);
+      break;
+    case "update_prospect":
+      await updateProspect(op.id, op.input);
+      break;
+    case "set_prospect_stage":
+      await updateProspectStage(op.id, op.to, op.lostReason);
+      await insertStageChange(op.id, op.from, op.to, op.changedBy);
       break;
     case "create_task":
       await createTask(op.input, op.id);

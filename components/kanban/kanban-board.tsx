@@ -16,11 +16,9 @@ import type { Stage, User } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
-import {
-  fetchProspects,
-  updateProspectStage,
-  type ProspectListItem,
-} from "@/lib/data/prospects";
+import { type ProspectListItem } from "@/lib/data/prospects";
+import { loadProspects } from "@/lib/offline/reads";
+import { submitProspectStage } from "@/lib/offline/writes";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { KanbanCard } from "@/components/kanban/kanban-card";
 import { LostReasonDialog } from "@/components/prospects/lost-reason-dialog";
@@ -44,7 +42,7 @@ export function KanbanBoard() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchProspects(), fetchAssignableCommercials(user)])
+    Promise.all([loadProspects(user), fetchAssignableCommercials(user)])
       .then(([ps, cs]) => {
         if (!active) return;
         setItems(ps);
@@ -74,17 +72,29 @@ export function KanbanBoard() {
     ? (items ?? []).find((p) => p.id === activeId) ?? null
     : null;
 
-  const persistStage = (prospectId: string, stage: Stage, reason?: string) => {
-    updateProspectStage(prospectId, stage, reason).catch(() =>
+  const persistStage = (
+    prospectId: string,
+    from: Stage | null,
+    stage: Stage,
+    reason?: string,
+  ) => {
+    submitProspectStage({
+      id: prospectId,
+      from,
+      to: stage,
+      changedBy: user.id,
+      lostReason: reason,
+    }).catch(() =>
       toast.error("Le déplacement n'a pas pu être enregistré."),
     );
   };
 
   const moveToStage = (prospectId: string, stage: Stage) => {
+    const from = (items ?? []).find((p) => p.id === prospectId)?.stage ?? null;
     setItems((prev) =>
       (prev ?? []).map((p) => (p.id === prospectId ? { ...p, stage } : p)),
     );
-    persistStage(prospectId, stage);
+    persistStage(prospectId, from, stage);
   };
 
   /** Tap-based stage move (kanban card menu), mirroring the drag rules. */
@@ -195,6 +205,7 @@ export function KanbanBoard() {
         onConfirm={(reason) => {
           if (pendingLost) {
             const lostId = pendingLost.id;
+            const from = pendingLost.stage;
             setItems((prev) =>
               (prev ?? []).map((p) =>
                 p.id === lostId
@@ -202,7 +213,7 @@ export function KanbanBoard() {
                   : p,
               ),
             );
-            persistStage(lostId, "lost", reason);
+            persistStage(lostId, from, "lost", reason);
             toast.info("Prospect marqué comme perdu", { description: reason });
           }
           setPendingLost(null);

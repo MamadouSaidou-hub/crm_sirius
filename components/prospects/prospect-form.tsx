@@ -11,8 +11,7 @@ import { SENEGAL_CITIES } from "@/lib/types";
 import { PRODUCTS, PRODUCT_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
-import { updateProspect } from "@/lib/data/prospects";
-import { submitProspect } from "@/lib/offline/writes";
+import { submitProspect, submitProspectUpdate } from "@/lib/offline/writes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,9 +119,16 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
     };
     try {
       if (prospect) {
-        await updateProspect(prospect.id, input);
-        toast.success("Prospect mis à jour");
-        router.push(`/prospects/${prospect.id}`);
+        const { queued } = await submitProspectUpdate(prospect.id, input);
+        if (queued) {
+          toast.success("Modifications enregistrées hors-ligne", {
+            description: "Elles seront synchronisées au retour de la connexion.",
+          });
+          router.push("/prospects");
+        } else {
+          toast.success("Prospect mis à jour");
+          router.push(`/prospects/${prospect.id}`);
+        }
       } else {
         const { id, queued } = await submitProspect(input);
         if (queued) {
