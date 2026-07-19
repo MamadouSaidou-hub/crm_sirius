@@ -103,8 +103,9 @@ export interface ProspectInput {
   notes: string;
 }
 
-function toRow(input: ProspectInput) {
+function toRow(input: ProspectInput, id?: string) {
   return {
+    ...(id ? { id } : {}),
     name: input.name,
     phone: input.phone || null,
     email: input.email || null,
@@ -118,12 +119,19 @@ function toRow(input: ProspectInput) {
   };
 }
 
-/** Create a prospect; returns its new id. */
-export async function createProspect(input: ProspectInput): Promise<string> {
+/**
+ * Create a prospect; returns its id. An explicit `id` can be supplied so that
+ * offline-queued creates keep a stable id between the local copy and the server
+ * row once replayed.
+ */
+export async function createProspect(
+  input: ProspectInput,
+  id?: string,
+): Promise<string> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("prospects")
-    .insert(toRow(input))
+    .insert(toRow(input, id))
     .select("id")
     .single();
   if (error) throw error;

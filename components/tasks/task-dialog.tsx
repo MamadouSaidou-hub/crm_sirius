@@ -8,7 +8,8 @@ import { TASK_TYPE_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
 import { fetchProspects, type ProspectListItem } from "@/lib/data/prospects";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
-import { createTask, type TaskWithRefs } from "@/lib/data/tasks";
+import { type TaskInput, type TaskWithRefs } from "@/lib/data/tasks";
+import { submitTask } from "@/lib/offline/writes";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -83,17 +84,40 @@ export function TaskDialog({ onAdd, fixedProspectId, trigger }: TaskDialogProps)
       setError(true);
       return;
     }
+    const input: TaskInput = {
+      title: title.trim(),
+      description: description.trim(),
+      type,
+      dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
+      prospectId: prospectId === "none" ? null : prospectId,
+      assignedTo: canAssign ? assignedTo : user.id,
+    };
     try {
-      const created = await createTask({
-        title: title.trim(),
-        description: description.trim(),
-        type,
-        dueDate: new Date(`${dueDate}T12:00:00`).toISOString(),
-        prospectId: prospectId === "none" ? null : prospectId,
-        assignedTo: canAssign ? assignedTo : user.id,
+      const res = await submitTask(input);
+      // Offline: no server row yet — synthesize one for the optimistic list.
+      const task: TaskWithRefs = res.task ?? {
+        id: res.id,
+        title: input.title,
+        description: input.description,
+        type: input.type,
+        status: "pending",
+        dueDate: input.dueDate,
+        prospectId: input.prospectId,
+        assignedTo: input.assignedTo,
+        createdAt: new Date().toISOString(),
+        prospectName:
+          prospects.find((p) => p.id === input.prospectId)?.name ?? null,
+        assigneeName:
+          input.assignedTo === user.id
+            ? user.name
+            : commercials.find((c) => c.id === input.assignedTo)?.name ?? "—",
+      };
+      onAdd(task);
+      toast.success(res.queued ? "Tâche enregistrée hors-ligne" : "Tâche créée", {
+        description: res.queued
+          ? "Sera synchronisée au retour de la connexion."
+          : undefined,
       });
-      onAdd(created);
-      toast.success("Tâche créée");
       reset();
       setOpen(false);
     } catch {

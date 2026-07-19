@@ -93,11 +93,13 @@ export interface InteractionInput {
 
 export async function createInteraction(
   input: InteractionInput,
+  id?: string,
 ): Promise<InteractionItem> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("interactions")
     .insert({
+      ...(id ? { id } : {}),
       prospect_id: input.prospectId,
       type: input.type,
       summary: input.summary,

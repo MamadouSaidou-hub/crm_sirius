@@ -77,11 +77,15 @@ export interface TaskInput {
   assignedTo: string;
 }
 
-export async function createTask(input: TaskInput): Promise<TaskWithRefs> {
+export async function createTask(
+  input: TaskInput,
+  id?: string,
+): Promise<TaskWithRefs> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("tasks")
     .insert({
+      ...(id ? { id } : {}),
       title: input.title,
       description: input.description || null,
       type: input.type,

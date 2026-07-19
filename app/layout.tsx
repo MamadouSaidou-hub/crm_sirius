@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { RegisterSW } from "@/components/offline/register-sw";
 import "./globals.css";
 
 const inter = Inter({
@@ -21,6 +22,12 @@ export const metadata: Metadata = {
   title: "SIRIUS CRM — Courtage en assurance",
   description:
     "Prototype CRM pour cabinet de courtage en assurance. Dakar, Sénégal.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "SIRIUS CRM", statusBarStyle: "black" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0F131F",
 };
 
 export default function RootLayout({
@@ -43,6 +50,7 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
+          <RegisterSW />
         </ThemeProvider>
       </body>
     </html>

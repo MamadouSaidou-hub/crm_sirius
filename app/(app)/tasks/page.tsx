@@ -11,11 +11,9 @@ import {
 import { toast } from "sonner";
 import type { User } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
-import {
-  fetchTasks,
-  setTaskStatus,
-  type TaskWithRefs,
-} from "@/lib/data/tasks";
+import { type TaskWithRefs } from "@/lib/data/tasks";
+import { submitTaskStatus } from "@/lib/offline/writes";
+import { loadTasks } from "@/lib/offline/reads";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +40,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchTasks(), fetchAssignableCommercials(user)])
+    Promise.all([loadTasks(user), fetchAssignableCommercials(user)])
       .then(([ts, cs]) => {
         if (!active) return;
         setTasks(ts);
@@ -100,7 +98,7 @@ export default function TasksPage() {
     setTasks((prev) =>
       (prev ?? []).map((t) => (t.id === id ? { ...t, status } : t)),
     );
-    setTaskStatus(id, status).catch(() =>
+    submitTaskStatus(id, status).catch(() =>
       toast.error("La tâche n'a pas pu être mise à jour."),
     );
   };

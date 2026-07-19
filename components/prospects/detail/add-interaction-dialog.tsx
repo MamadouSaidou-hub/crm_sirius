@@ -7,9 +7,10 @@ import type { InteractionType } from "@/lib/types";
 import { INTERACTION_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
 import {
-  createInteraction,
+  type InteractionInput,
   type InteractionItem,
 } from "@/lib/data/interactions";
+import { submitInteraction } from "@/lib/offline/writes";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -60,16 +61,35 @@ export function AddInteractionDialog({
       setError(true);
       return;
     }
+    const input: InteractionInput = {
+      prospectId,
+      type,
+      summary: summary.trim(),
+      durationMin: duration ? Number(duration) : undefined,
+      createdBy: user.id,
+    };
     try {
-      const created = await createInteraction({
-        prospectId,
-        type,
-        summary: summary.trim(),
-        durationMin: duration ? Number(duration) : undefined,
+      const res = await submitInteraction(input);
+      // Synthesize the item for the optimistic timeline (matches server shape).
+      onAdd({
+        id: res.id,
+        prospectId: input.prospectId,
+        type: input.type,
+        summary: input.summary,
+        durationMin: input.durationMin,
         createdBy: user.id,
+        createdAt: new Date().toISOString(),
+        authorName: user.name,
+        authorRole: user.role,
       });
-      onAdd(created);
-      toast.success("Interaction ajoutée");
+      toast.success(
+        res.queued ? "Interaction enregistrée hors-ligne" : "Interaction ajoutée",
+        {
+          description: res.queued
+            ? "Sera synchronisée au retour de la connexion."
+            : undefined,
+        },
+      );
       reset();
       setOpen(false);
     } catch {

@@ -7,10 +7,8 @@ import { toast } from "sonner";
 import type { User } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
 import { canExport } from "@/lib/access";
-import {
-  fetchProspects,
-  type ProspectListItem,
-} from "@/lib/data/prospects";
+import { type ProspectListItem } from "@/lib/data/prospects";
+import { loadProspects } from "@/lib/offline/reads";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -51,7 +49,7 @@ export default function ProspectsPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchProspects(), fetchAssignableCommercials(user)])
+    Promise.all([loadProspects(user), fetchAssignableCommercials(user)])
       .then(([ps, cs]) => {
         if (!active) return;
         setProspects(ps);

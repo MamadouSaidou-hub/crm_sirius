@@ -1,4 +1,5 @@
 import { MockUserProvider } from "@/lib/mock-auth";
+import { SyncProvider } from "@/lib/offline/sync-provider";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default function AppLayout({
@@ -8,7 +9,9 @@ export default function AppLayout({
 }) {
   return (
     <MockUserProvider>
-      <AppShell>{children}</AppShell>
+      <SyncProvider>
+        <AppShell>{children}</AppShell>
+      </SyncProvider>
     </MockUserProvider>
   );
 }

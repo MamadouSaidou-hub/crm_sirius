@@ -11,7 +11,8 @@ import { SENEGAL_CITIES } from "@/lib/types";
 import { PRODUCTS, PRODUCT_LABELS } from "@/lib/constants";
 import { useMockUser } from "@/lib/mock-auth";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
-import { createProspect, updateProspect } from "@/lib/data/prospects";
+import { updateProspect } from "@/lib/data/prospects";
+import { submitProspect } from "@/lib/offline/writes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,9 +124,18 @@ export function ProspectForm({ prospect }: ProspectFormProps) {
         toast.success("Prospect mis à jour");
         router.push(`/prospects/${prospect.id}`);
       } else {
-        const id = await createProspect(input);
-        toast.success("Prospect créé");
-        router.push(`/prospects/${id}`);
+        const { id, queued } = await submitProspect(input);
+        if (queued) {
+          toast.success("Prospect enregistré hors-ligne", {
+            description: "Il sera synchronisé au retour de la connexion.",
+          });
+          // The detail page can't load until the record reaches the server;
+          // send the user back to the (cached) list where it appears as pending.
+          router.push("/prospects");
+        } else {
+          toast.success("Prospect créé");
+          router.push(`/prospects/${id}`);
+        }
       }
       router.refresh();
     } catch {

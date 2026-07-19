@@ -6,6 +6,7 @@ import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { OfflineBanner } from "@/components/offline/offline-banner";
 import { fetchTasks } from "@/lib/data/tasks";
 import { isOverdue } from "@/lib/date";
 
@@ -66,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onSearchClick={() => setPaletteOpen(true)}
           notificationCount={notificationCount}
         />
+        <OfflineBanner />
         <main className="flex-1">
           <div className="mx-auto w-full max-w-[1400px] p-4 pb-24 md:p-6 md:pb-6 lg:p-8">
             {children}

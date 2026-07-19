@@ -37,9 +37,9 @@ import {
 } from "@/lib/data/interactions";
 import {
   fetchTasksForProspect,
-  setTaskStatus,
   type TaskWithRefs,
 } from "@/lib/data/tasks";
+import { submitTaskStatus } from "@/lib/offline/writes";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -123,7 +123,7 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
     );
-    setTaskStatus(taskId, status).catch(() =>
+    submitTaskStatus(taskId, status).catch(() =>
       toast.error("La tâche n'a pas pu être mise à jour."),
     );
   };

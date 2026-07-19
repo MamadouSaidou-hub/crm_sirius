@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useMockUser } from "@/lib/mock-auth";
+import { useSync } from "@/lib/offline/sync-provider";
+import { relativeDate } from "@/lib/date";
 import { ROLE_LABELS } from "@/lib/constants";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -23,6 +25,7 @@ import { AppearanceCard } from "@/components/settings/appearance-card";
 export default function SettingsPage() {
   const { user } = useMockUser();
   const canEdit = user.role === "admin";
+  const { online, pending, syncing, lastSyncAt, syncNow } = useSync();
 
   const [notif, setNotif] = useState({
     email: true,
@@ -73,28 +76,60 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Synchronisation</CardTitle>
-            <CardDescription>État de la synchronisation des données</CardDescription>
+            <CardDescription>
+              Vos saisies hors-ligne sont envoyées automatiquement au retour du
+              réseau.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  Dernière synchronisation
+                  {online ? "Connecté" : "Hors-ligne"}
                 </p>
-                <p className="text-xs text-muted-foreground">Il y a 3 min</p>
+                <p className="text-xs text-muted-foreground">
+                  {lastSyncAt
+                    ? `Dernière synchro ${relativeDate(lastSyncAt)}`
+                    : "Aucune synchronisation encore"}
+                </p>
               </div>
-              <span className="flex h-2.5 w-2.5 rounded-full bg-sirius-success" />
+              <span
+                className={`flex h-2.5 w-2.5 rounded-full ${
+                  online ? "bg-sirius-success" : "bg-sirius-warning"
+                }`}
+              />
             </div>
+
+            <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+              <p className="text-sm font-medium text-foreground">
+                En attente d&apos;envoi
+              </p>
+              <span
+                className={`text-sm font-semibold ${
+                  pending > 0 ? "text-sirius-warning" : "text-muted-foreground"
+                }`}
+              >
+                {pending}
+              </span>
+            </div>
+
             <Button
               variant="outline"
-              onClick={() =>
-                toast.success("Synchronisation lancée", {
-                  description: "Les données sont à jour (simulation).",
-                })
-              }
+              disabled={!online || syncing || pending === 0}
+              onClick={() => {
+                void syncNow().then(() =>
+                  toast.success("Synchronisation terminée"),
+                );
+              }}
             >
-              <RefreshCw className="h-4 w-4" />
-              Forcer la synchronisation
+              {syncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {pending > 0
+                ? `Synchroniser (${pending})`
+                : "Tout est synchronisé"}
             </Button>
           </CardContent>
         </Card>
