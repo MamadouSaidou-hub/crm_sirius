@@ -17,26 +17,18 @@ import {
   Phone,
 } from "lucide-react";
 import type { Stage } from "@/lib/types";
+import { type ContractItem } from "@/lib/data/contracts";
+import { type StageHistoryItem } from "@/lib/data/stage-history";
+import { type ProspectListItem } from "@/lib/data/prospects";
+import { type InteractionItem } from "@/lib/data/interactions";
+import { type TaskWithRefs } from "@/lib/data/tasks";
 import {
-  fetchContractsForProspect,
-  type ContractItem,
-} from "@/lib/data/contracts";
-import {
-  fetchStageHistory,
-  type StageHistoryItem,
-} from "@/lib/data/stage-history";
-import {
-  fetchProspect,
-  type ProspectListItem,
-} from "@/lib/data/prospects";
-import {
-  fetchInteractions,
-  type InteractionItem,
-} from "@/lib/data/interactions";
-import {
-  fetchTasksForProspect,
-  type TaskWithRefs,
-} from "@/lib/data/tasks";
+  loadContractsForProspect,
+  loadInteractions,
+  loadProspect,
+  loadStageHistory,
+  loadTasksForProspect,
+} from "@/lib/offline/reads";
 import { submitProspectStage, submitTaskStatus } from "@/lib/offline/writes";
 import { useMockUser } from "@/lib/mock-auth";
 import { Button } from "@/components/ui/button";
@@ -57,6 +49,7 @@ export default function ProspectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { user } = useMockUser();
   // undefined = loading, null = not found
   const [base, setBase] = useState<ProspectListItem | null | undefined>(
     undefined,
@@ -64,13 +57,13 @@ export default function ProspectDetailPage({
 
   useEffect(() => {
     let active = true;
-    fetchProspect(id)
+    loadProspect(id, user)
       .then((p) => active && setBase(p))
       .catch(() => active && setBase(null));
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, user]);
 
   if (base === undefined) {
     return (
@@ -99,22 +92,22 @@ function ProspectDetailView({ base }: { base: ProspectListItem }) {
 
   useEffect(() => {
     let active = true;
-    fetchInteractions(id)
+    loadInteractions(id, user)
       .then((r) => active && setInteractions(r))
       .catch(() => {});
-    fetchTasksForProspect(id)
+    loadTasksForProspect(id, user)
       .then((r) => active && setTasks(r))
       .catch(() => {});
-    fetchContractsForProspect(id)
+    loadContractsForProspect(id)
       .then((r) => active && setContracts(r))
       .catch(() => {});
-    fetchStageHistory(id)
+    loadStageHistory(id, user)
       .then((r) => active && setHistory(r))
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, user]);
 
   const handleToggleTask = (taskId: string, done: boolean) => {
     const status = done ? "done" : "pending";
