@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useMockUser } from "@/lib/mock-auth";
 import { useSync } from "@/lib/offline/sync-provider";
+import { usePwaInstall } from "@/lib/offline/use-pwa-install";
 import { relativeDate } from "@/lib/date";
 import { ROLE_LABELS } from "@/lib/constants";
 import { PageHeader } from "@/components/shared/page-header";
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const { user } = useMockUser();
   const canEdit = user.role === "admin";
   const { online, pending, syncing, lastSyncAt, syncNow } = useSync();
+  const install = usePwaInstall();
 
   const [notif, setNotif] = useState({
     email: true,
@@ -131,6 +133,46 @@ export default function SettingsPage() {
                 ? `Synchroniser (${pending})`
                 : "Tout est synchronisé"}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Application</CardTitle>
+            <CardDescription>
+              Installez Sirius CRM sur l&apos;appareil pour un accès rapide et
+              hors-ligne.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {install.isStandalone ? (
+              <p className="rounded-md bg-sirius-success/10 px-3 py-2.5 text-sm text-sirius-success">
+                ✓ Application installée sur cet appareil.
+              </p>
+            ) : install.canInstall ? (
+              <Button onClick={() => void install.promptInstall()}>
+                <Download className="h-4 w-4" />
+                Installer l&apos;application
+              </Button>
+            ) : install.isIOS ? (
+              <p className="text-sm text-muted-foreground">
+                Sur iPhone/iPad (Safari) : appuyez sur{" "}
+                <span className="font-medium text-foreground">Partager</span>{" "}
+                puis{" "}
+                <span className="font-medium text-foreground">
+                  « Sur l&apos;écran d&apos;accueil »
+                </span>
+                .
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Ouvrez le menu de votre navigateur puis{" "}
+                <span className="font-medium text-foreground">
+                  « Installer l&apos;application »
+                </span>{" "}
+                (ou « Ajouter à l&apos;écran d&apos;accueil »).
+              </p>
+            )}
           </CardContent>
         </Card>
 

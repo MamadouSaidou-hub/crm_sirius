@@ -7,6 +7,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { OfflineBanner } from "@/components/offline/offline-banner";
+import { InstallPrompt } from "@/components/offline/install-prompt";
 import { countOverdueTasks } from "@/lib/data/tasks";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -63,6 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           notificationCount={notificationCount}
         />
         <OfflineBanner />
+        <InstallPrompt />
         <main className="flex-1">
           <div className="mx-auto w-full max-w-[1400px] p-4 pb-24 md:p-6 md:pb-6 lg:p-8">
             {children}
