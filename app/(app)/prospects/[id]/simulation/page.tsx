@@ -27,6 +27,7 @@ import { QuoteOptionCard } from "@/components/simulation/quote-option-card";
 import { SubscribeDialog } from "@/components/simulation/subscribe-dialog";
 import { ProductTabs } from "@/components/simulation/product-tabs";
 import { AskiaProductSimulation } from "@/components/simulation/askia-product-simulation";
+import { VoyageSimulation } from "@/components/simulation/voyage-simulation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -211,6 +212,8 @@ export default function ProspectSimulationPage({
             </section>
           )}
         </>
+      ) : product === "voyage" ? (
+        <VoyageSimulation />
       ) : (
         <AskiaProductSimulation product={product} />
       )}
