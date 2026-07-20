@@ -12,7 +12,7 @@ const DISMISS_KEY = "sirius_install_dismissed";
  * iOS. Hidden when already installed or once dismissed.
  */
 export function InstallPrompt() {
-  const { canInstall, isIOS, promptInstall } = usePwaInstall();
+  const { canInstall, isIOS, isIOSSafari, promptInstall } = usePwaInstall();
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
@@ -43,13 +43,26 @@ export function InstallPrompt() {
             Installer
           </button>
         </>
+      ) : isIOSSafari ? (
+        <>
+          <Share className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            Pour installer : appuyez sur le bouton{" "}
+            <span className="font-semibold">Partager</span> de Safari (en bas,
+            carré + flèche ↑) puis{" "}
+            <span className="font-semibold">
+              « Sur l&apos;écran d&apos;accueil »
+            </span>
+            .
+          </span>
+        </>
       ) : (
         <>
           <Share className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1">
-            Pour installer : appuyez sur{" "}
-            <span className="font-semibold">Partager</span> puis{" "}
-            <span className="font-semibold">« Sur l&apos;écran d&apos;accueil »</span>.
+            Ouvrez ce lien dans <span className="font-semibold">Safari</span>{" "}
+            pour installer l&apos;app (l&apos;installation iPhone ne marche que
+            dans Safari).
           </span>
         </>
       )}

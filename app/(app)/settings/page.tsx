@@ -154,15 +154,22 @@ export default function SettingsPage() {
                 <Download className="h-4 w-4" />
                 Installer l&apos;application
               </Button>
-            ) : install.isIOS ? (
+            ) : install.isIOSSafari ? (
               <p className="text-sm text-muted-foreground">
-                Sur iPhone/iPad (Safari) : appuyez sur{" "}
-                <span className="font-medium text-foreground">Partager</span>{" "}
-                puis{" "}
+                Sur iPhone/iPad : appuyez sur le bouton{" "}
+                <span className="font-medium text-foreground">Partager</span> de
+                Safari (en bas, carré + flèche ↑) puis{" "}
                 <span className="font-medium text-foreground">
                   « Sur l&apos;écran d&apos;accueil »
                 </span>
                 .
+              </p>
+            ) : install.isIOS ? (
+              <p className="text-sm text-muted-foreground">
+                Ouvrez ce lien dans{" "}
+                <span className="font-medium text-foreground">Safari</span> pour
+                pouvoir l&apos;installer — sur iPhone, l&apos;ajout à
+                l&apos;écran d&apos;accueil ne fonctionne que dans Safari.
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">

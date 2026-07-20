@@ -26,11 +26,27 @@ function detectIOS(): boolean {
   );
 }
 
+/**
+ * True only when running in real Safari on iOS — the only browser where
+ * Add-to-Home-Screen works. Chrome/Firefox/Edge on iOS and in-app webviews
+ * (WhatsApp, Instagram, Facebook…) cannot install.
+ */
+function detectIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (!/iphone|ipad|ipod/i.test(ua)) return false;
+  const blocked =
+    /crios|fxios|edgios|opios|gsa|fban|fbav|instagram|line\/|whatsapp|micromessenger/i;
+  return /safari/i.test(ua) && !blocked.test(ua);
+}
+
 export interface PwaInstall {
   /** Native install prompt is available (Android / Chromium desktop). */
   canInstall: boolean;
-  /** iOS Safari: no programmatic prompt — show manual instructions. */
+  /** iOS device (any browser), not already installed. */
   isIOS: boolean;
+  /** Real Safari on iOS — where Add-to-Home-Screen actually works. */
+  isIOSSafari: boolean;
   /** Already running as an installed app. */
   isStandalone: boolean;
   /** Trigger the native install dialog. Returns the user's choice. */
@@ -46,10 +62,12 @@ export function usePwaInstall(): PwaInstall {
     useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isIOSSafari, setIsIOSSafari] = useState(false);
 
   useEffect(() => {
     setIsStandalone(detectStandalone());
     setIsIOS(detectIOS());
+    setIsIOSSafari(detectIOSSafari());
 
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -80,6 +98,7 @@ export function usePwaInstall(): PwaInstall {
   return {
     canInstall: deferred !== null && !isStandalone,
     isIOS: isIOS && !isStandalone,
+    isIOSSafari: isIOSSafari && !isStandalone,
     isStandalone,
     promptInstall,
   };
