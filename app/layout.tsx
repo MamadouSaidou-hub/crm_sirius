@@ -25,8 +25,12 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "SIRIUS CRM", statusBarStyle: "black" },
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: "/Sirius.jpeg",
+    icon: [
+      { url: "/sirius-mark-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/sirius-mark-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/sirius-mark-192.png",
   },
 };
 

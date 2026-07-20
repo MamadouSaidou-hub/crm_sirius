@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -9,16 +10,44 @@ interface LogoProps {
   compact?: boolean;
 }
 
-/** Text wordmark used in the sidebar and drawers. */
+/** Star mark + wordmark used in the sidebar and drawers. */
 export function Logo({ className, compact = false }: LogoProps) {
-  return (
-    <span className={cn("inline-flex flex-col leading-none", className)}>
-      <span className="font-heading text-lg font-bold uppercase tracking-wide text-sirius-teal">
-        Sirius
+  const [broken, setBroken] = useState(false);
+
+  if (broken) {
+    return (
+      <span className={cn("inline-flex flex-col leading-none", className)}>
+        <span className="font-heading text-lg font-bold uppercase tracking-wide text-sirius-teal">
+          Sirius
+        </span>
+        {!compact && (
+          <span className="font-heading text-[10px] font-medium uppercase tracking-[0.22em] text-sirius-subtext">
+            Assurances
+          </span>
+        )}
       </span>
+    );
+  }
+
+  return (
+    <span className={cn("flex items-center gap-2", className)}>
+      <Image
+        src="/sirius-mark-192.png"
+        alt="Sirius Assurances"
+        width={36}
+        height={36}
+        priority
+        className="h-9 w-9 shrink-0 object-contain"
+        onError={() => setBroken(true)}
+      />
       {!compact && (
-        <span className="font-heading text-[10px] font-medium uppercase tracking-[0.22em] text-sirius-subtext">
-          Assurances
+        <span className="inline-flex flex-col leading-none">
+          <span className="font-heading text-lg font-bold uppercase tracking-wide text-sirius-teal">
+            Sirius
+          </span>
+          <span className="font-heading text-[10px] font-medium uppercase tracking-[0.22em] text-sirius-subtext">
+            Assurances
+          </span>
         </span>
       )}
     </span>
