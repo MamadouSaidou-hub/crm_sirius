@@ -36,10 +36,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
+  // refresh has empty deps because setPending is a stable state setter (never changes).
+  // It's safe to call in effects and other callbacks.
   const refresh = useCallback(() => {
-    pendingCount()
-      .then(setPending)
-      .catch(() => {});
+    pendingCount().then(setPending).catch(() => {
+      // Database unavailable; retry on next sync event rather than leaving stale count
+    });
   }, []);
 
   const syncNow = useCallback(async () => {

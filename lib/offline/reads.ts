@@ -35,13 +35,11 @@ import type { OutboxItem } from "./types";
 
 function dedupeById<T extends { id: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
-  const out: T[] = [];
-  for (const r of rows) {
-    if (seen.has(r.id)) continue;
+  return rows.filter((r) => {
+    if (seen.has(r.id)) return false;
     seen.add(r.id);
-    out.push(r);
-  }
-  return out;
+    return true;
+  });
 }
 
 async function pendingProspects(current: User): Promise<ProspectListItem[]> {

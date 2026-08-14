@@ -44,12 +44,14 @@ const GROUPS = NSIA_FORMULES.reduce<Record<string, typeof NSIA_FORMULES>>(
 
 export function NsiaVoyageForm({ onQuote }: NsiaVoyageFormProps) {
   const [formuleKey, setFormuleKey] = useState("europe_schengen_plus");
-  const formule = NSIA_FORMULES.find((f) => f.key === formuleKey)!;
+  const formule = NSIA_FORMULES.find((f) => f.key === formuleKey);
+  if (!formule) return null; // Formule not found (should not happen with valid initial state)
+
   const durations = useMemo(
     () => nsiaDurations(formule.family),
     [formule.family],
   );
-  const [durationKey, setDurationKey] = useState(durations[0].key);
+  const [durationKey, setDurationKey] = useState(durations[0]?.key ?? "d7");
   const [counts, setCounts] = useState<Record<string, number>>({
     child: 0,
     adult: 1,
@@ -61,10 +63,14 @@ export function NsiaVoyageForm({ onQuote }: NsiaVoyageFormProps) {
   const isStandard = formule.family === "standard";
 
   const onFormuleChange = (key: string) => {
-    const next = NSIA_FORMULES.find((f) => f.key === key)!;
+    const next = NSIA_FORMULES.find((f) => f.key === key);
+    if (!next) return;
     setFormuleKey(key);
     // Reset the duration to the first available for the new family.
-    setDurationKey(nsiaDurations(next.family)[0].key);
+    const nextDurations = nsiaDurations(next.family);
+    if (nextDurations.length > 0) {
+      setDurationKey(nextDurations[0].key);
+    }
   };
 
   const setCount = (tier: string, next: number) =>
@@ -185,9 +191,10 @@ export function NsiaVoyageForm({ onQuote }: NsiaVoyageFormProps) {
                 min={1}
                 max={20}
                 value={flatCount}
-                onChange={(e) =>
-                  setFlatCount(Math.max(1, Math.min(20, Number(e.target.value))))
-                }
+                onChange={(e) => {
+                  const num = Number(e.target.value);
+                  setFlatCount(isNaN(num) ? flatCount : Math.max(1, Math.min(20, num)));
+                }}
               />
             </div>
           )}

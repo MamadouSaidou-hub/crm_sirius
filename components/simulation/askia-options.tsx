@@ -108,7 +108,11 @@ export function AskiaOptions({ value, onChange }: AskiaOptionsProps) {
       return;
     }
     let active = true;
-    loadRef(`type=scategories&catCode=${value.category}`).then((subs) => {
+    const params = new URLSearchParams({
+      type: "scategories",
+      catCode: value.category,
+    }).toString();
+    loadRef(params).then((subs) => {
       if (active) setSubCategories(subs ?? ASKIA_FALLBACK_SUBCATEGORIES);
     });
     return () => {
