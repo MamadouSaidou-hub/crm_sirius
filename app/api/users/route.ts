@@ -84,5 +84,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: updErr.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, id: created.user.id });
+  const response = NextResponse.json({ ok: true, id: created.user.id });
+  // Restrict CORS to same-origin only (internal tool)
+  response.headers.set("Access-Control-Allow-Origin", "same-origin");
+  response.headers.set("Access-Control-Allow-Methods", "POST");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return response;
 }

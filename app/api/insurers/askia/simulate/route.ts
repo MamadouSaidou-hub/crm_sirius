@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import type { AutoRiskData, SimProduct } from "@/lib/types";
 import {
   buildAskiaAutoParams,
@@ -8,6 +9,35 @@ import {
   buildAskiaVoyageParams,
   mapAskiaResponse,
 } from "@/lib/insurers/askia";
+
+// Strict schema validation for each product's risk data
+const AutoRiskSchema = z.object({
+  category: z.string().min(1),
+  subCategory: z.string().min(1),
+  packCode: z.string().optional(),
+  guarantees: z.record(z.boolean()).optional(),
+});
+
+const MrhRiskSchema = z.object({
+  surface: z.number().positive(),
+  type: z.string().min(1),
+});
+
+const VoyageRiskSchema = z.object({
+  destination: z.string().min(1),
+  duration: z.number().positive(),
+});
+
+const RapatriementRiskSchema = z.object({
+  zone: z.string().min(1),
+});
+
+const RequestSchema = z.object({
+  product: z.enum(["auto", "mrh", "voyage", "rapatriement"]).default("auto"),
+  risk: z.unknown().refine((val) => val !== undefined && val !== null, {
+    message: "risk data is required",
+  }),
+});
 
 /**
  * Server-side proxy for the Askia tarif API across products (auto, mrh, voyage,
@@ -20,31 +50,41 @@ import {
  */
 function endpointFor(
   product: SimProduct,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  risk: any,
+  risk: unknown,
 ): { path: string; params: Record<string, string> } | null {
-  switch (product) {
-    case "auto": {
-      const auto = risk as AutoRiskData;
-      const usePack = Boolean(auto.packCode);
-      return {
-        path: usePack ? "srwb/autopack" : "srwb/automobile",
-        params: usePack
-          ? buildAskiaPackParams(auto)
-          : buildAskiaAutoParams(auto),
-      };
+  try {
+    switch (product) {
+      case "auto": {
+        const auto = AutoRiskSchema.parse(risk) as AutoRiskData;
+        const usePack = Boolean(auto.packCode);
+        return {
+          path: usePack ? "srwb/autopack" : "srwb/automobile",
+          params: usePack
+            ? buildAskiaPackParams(auto)
+            : buildAskiaAutoParams(auto),
+        };
+      }
+      case "mrh": {
+        const mrh = MrhRiskSchema.parse(risk);
+        return { path: "srwb/mrh", params: buildAskiaMrhParams(mrh) };
+      }
+      case "voyage": {
+        const voyage = VoyageRiskSchema.parse(risk);
+        return { path: "srwb/voyage", params: buildAskiaVoyageParams(voyage) };
+      }
+      case "rapatriement": {
+        const rapatriement = RapatriementRiskSchema.parse(risk);
+        return {
+          path: "srwb/rapatriement",
+          params: buildAskiaRapatriementParams(rapatriement),
+        };
+      }
+      default:
+        return null;
     }
-    case "mrh":
-      return { path: "srwb/mrh", params: buildAskiaMrhParams(risk) };
-    case "voyage":
-      return { path: "srwb/voyage", params: buildAskiaVoyageParams(risk) };
-    case "rapatriement":
-      return {
-        path: "srwb/rapatriement",
-        params: buildAskiaRapatriementParams(risk),
-      };
-    default:
-      return null;
+  } catch {
+    // Validation failed; return null to trigger fallback
+    return null;
   }
 }
 
@@ -54,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: "not_configured" });
   }
 
-  let body: { product?: SimProduct; risk?: unknown };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -64,11 +104,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const product = body.product ?? "auto";
-  const target = endpointFor(product, body.risk);
+  // Validate request schema
+  const parsed = RequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, reason: "invalid_request" },
+      { status: 400 },
+    );
+  }
+
+  const { product, risk } = parsed.data;
+  const target = endpointFor(product, risk);
   if (!target) {
     return NextResponse.json(
-      { ok: false, reason: "unknown_product" },
+      { ok: false, reason: "invalid_risk_data" },
       { status: 400 },
     );
   }
@@ -89,7 +138,15 @@ export async function POST(request: Request) {
       );
     }
     const raw = await upstream.json();
-    return NextResponse.json({ ok: true, pricing: mapAskiaResponse(raw) });
+    const response = NextResponse.json({
+      ok: true,
+      pricing: mapAskiaResponse(raw),
+    });
+    // Restrict CORS to same-origin only (internal tool)
+    response.headers.set("Access-Control-Allow-Origin", "same-origin");
+    response.headers.set("Access-Control-Allow-Methods", "POST");
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    return response;
   } catch {
     return NextResponse.json(
       { ok: false, reason: "upstream_unreachable" },

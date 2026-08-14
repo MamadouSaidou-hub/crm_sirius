@@ -3,11 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /** Public paths that don't require an authenticated session. */
 function isPublic(pathname: string): boolean {
-  return (
-    pathname === "/login" ||
-    pathname === "/" ||
-    pathname.startsWith("/api")
-  );
+  // API routes are private by default; only explicitly public routes below.
+  // This prevents accidental exposure of new endpoints.
+  const publicPaths = ["/login", "/"];
+  return publicPaths.includes(pathname);
 }
 
 /**

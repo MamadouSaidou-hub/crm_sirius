@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import type { AskiaRefItem } from "@/lib/insurers/askia";
+
+const RefTypeSchema = z.enum(["categories", "scategories", "packs"]);
 
 /**
  * Server-side proxy for the Askia referential endpoints (categories,
@@ -21,13 +24,30 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
-  const base = process.env.ASKIA_API_BASE ?? "https://api.askianet.com";
 
+  // Validate type parameter
+  const typeValidation = RefTypeSchema.safeParse(type);
+  if (!typeValidation.success) {
+    return NextResponse.json(
+      { ok: false, reason: "bad_type" },
+      { status: 400 },
+    );
+  }
+
+  const base = process.env.ASKIA_API_BASE ?? "https://api.askianet.com";
   let path: string | null = null;
-  if (type === "categories") {
+
+  if (typeValidation.data === "categories") {
     const brCode = searchParams.get("brCode") ?? "500";
+    // Validate brCode is numeric to prevent injection
+    if (!/^\d+$/.test(brCode)) {
+      return NextResponse.json(
+        { ok: false, reason: "invalid_brCode" },
+        { status: 400 },
+      );
+    }
     path = `/webservice/referentiel/categories?brCode=${encodeURIComponent(brCode)}`;
-  } else if (type === "scategories") {
+  } else if (typeValidation.data === "scategories") {
     const catCode = searchParams.get("catCode");
     if (!catCode) {
       return NextResponse.json(
@@ -36,13 +56,8 @@ export async function GET(request: Request) {
       );
     }
     path = `/webservice/referentiel/scategories?catCode=${encodeURIComponent(catCode)}`;
-  } else if (type === "packs") {
+  } else if (typeValidation.data === "packs") {
     path = `/webservice/referentiel/packs`;
-  } else {
-    return NextResponse.json(
-      { ok: false, reason: "bad_type" },
-      { status: 400 },
-    );
   }
 
   try {
@@ -57,7 +72,11 @@ export async function GET(request: Request) {
       );
     }
     const items = (await upstream.json()) as AskiaRefItem[];
-    return NextResponse.json({ ok: true, items });
+    const response = NextResponse.json({ ok: true, items });
+    // Restrict CORS to same-origin only (internal tool)
+    response.headers.set("Access-Control-Allow-Origin", "same-origin");
+    response.headers.set("Access-Control-Allow-Methods", "GET");
+    return response;
   } catch {
     return NextResponse.json(
       { ok: false, reason: "upstream_unreachable" },

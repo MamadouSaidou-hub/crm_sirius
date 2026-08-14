@@ -1,0 +1,22 @@
+# SIRIUS CRM — Internal Tool
+# Block all crawlers to prevent indexing of internal application pages
+# and sensitive prospect/commercial data.
+
+User-agent: *
+Disallow: /
+
+# Explicitly block search engines from crawling
+User-agent: Googlebot
+Disallow: /
+
+User-agent: Bingbot
+Disallow: /
+
+User-agent: Slurp
+Disallow: /
+
+# Allow service monitoring only if needed
+# User-agent: UptimeRobot
+# Disallow:
+
+# Sitemap is intentionally not provided (internal tool)
