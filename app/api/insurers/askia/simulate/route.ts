@@ -19,17 +19,21 @@ const AutoRiskSchema = z.object({
 });
 
 const MrhRiskSchema = z.object({
-  surface: z.number().positive(),
-  type: z.string().min(1),
+  contentsValue: z.number().positive(),
+  rooms: z.number().int().min(1),
+  durationMonths: z.number().int().positive(),
 });
 
 const VoyageRiskSchema = z.object({
-  destination: z.string().min(1),
-  duration: z.number().positive(),
+  zone: z.string().min(1),
+  durationDays: z.number().int().positive(),
 });
 
 const RapatriementRiskSchema = z.object({
-  zone: z.string().min(1),
+  formula: z.string().min(1),
+  extraAdults: z.number().int().nonnegative(),
+  extraChildren: z.number().int().nonnegative(),
+  seniors: z.number().int().nonnegative(),
 });
 
 const RequestSchema = z.object({
@@ -55,28 +59,36 @@ function endpointFor(
   try {
     switch (product) {
       case "auto": {
-        const auto = AutoRiskSchema.parse(risk) as AutoRiskData;
+        const auto = AutoRiskSchema.parse(risk);
         const usePack = Boolean(auto.packCode);
         return {
           path: usePack ? "srwb/autopack" : "srwb/automobile",
           params: usePack
-            ? buildAskiaPackParams(auto)
-            : buildAskiaAutoParams(auto),
+            ? buildAskiaPackParams(auto as AutoRiskData)
+            : buildAskiaAutoParams(auto as AutoRiskData),
         };
       }
       case "mrh": {
         const mrh = MrhRiskSchema.parse(risk);
-        return { path: "srwb/mrh", params: buildAskiaMrhParams(mrh) };
+        return {
+          path: "srwb/mrh",
+          params: buildAskiaMrhParams(mrh as unknown as import("@/lib/types").MrhRiskData),
+        };
       }
       case "voyage": {
         const voyage = VoyageRiskSchema.parse(risk);
-        return { path: "srwb/voyage", params: buildAskiaVoyageParams(voyage) };
+        return {
+          path: "srwb/voyage",
+          params: buildAskiaVoyageParams(voyage as unknown as import("@/lib/types").VoyageRiskData),
+        };
       }
       case "rapatriement": {
         const rapatriement = RapatriementRiskSchema.parse(risk);
         return {
           path: "srwb/rapatriement",
-          params: buildAskiaRapatriementParams(rapatriement),
+          params: buildAskiaRapatriementParams(
+            rapatriement as unknown as import("@/lib/types").RapatriementRiskData,
+          ),
         };
       }
       default:
