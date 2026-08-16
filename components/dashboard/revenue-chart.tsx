@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   CartesianGrid,
   Line,
@@ -13,7 +14,7 @@ import type { MonthlyRevenueDatum } from "@/lib/types";
 import { formatFCFACompact } from "@/lib/utils";
 import { AXIS_PROPS, CHART_COLORS, ChartTooltip } from "./chart-common";
 
-export function RevenueChart({ data }: { data: MonthlyRevenueDatum[] }) {
+function RevenueChartImpl({ data }: { data: MonthlyRevenueDatum[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
@@ -42,3 +43,5 @@ export function RevenueChart({ data }: { data: MonthlyRevenueDatum[] }) {
     </ResponsiveContainer>
   );
 }
+
+export const RevenueChart = memo(RevenueChartImpl);

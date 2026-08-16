@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   Bar,
   BarChart,
@@ -14,7 +15,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Trophy } from "lucide-react";
 import { AXIS_PROPS, CHART_COLORS, ChartTooltip } from "./chart-common";
 
-export function TopCommercialsChart({
+function TopCommercialsChartImpl({
   data,
 }: {
   data: CommercialPerformance[];
@@ -68,3 +69,5 @@ export function TopCommercialsChart({
     </ResponsiveContainer>
   );
 }
+
+export const TopCommercialsChart = memo(TopCommercialsChartImpl);

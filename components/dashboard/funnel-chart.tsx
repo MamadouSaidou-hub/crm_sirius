@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   Bar,
   BarChart,
@@ -20,7 +21,7 @@ const BAR_COLORS = [
   CHART_COLORS.success,
 ];
 
-export function FunnelChart({ data }: { data: FunnelDatum[] }) {
+function FunnelChartImpl({ data }: { data: FunnelDatum[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart
@@ -50,3 +51,5 @@ export function FunnelChart({ data }: { data: FunnelDatum[] }) {
     </ResponsiveContainer>
   );
 }
+
+export const FunnelChart = memo(FunnelChartImpl);
