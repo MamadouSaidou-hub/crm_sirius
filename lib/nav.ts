@@ -1,6 +1,7 @@
 import {
   Building2,
   Calculator,
+  Banknote,
   CheckSquare,
   KanbanSquare,
   LayoutDashboard,
@@ -34,6 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Nouvelle simulation", href: "/simulation", icon: Calculator },
   { label: "Tâches", href: "/tasks", icon: CheckSquare },
   { label: "Objectifs", href: "/performance", icon: Target },
+  { label: "Paie", href: "/payroll", icon: Banknote },
   {
     label: "Équipe",
     href: "/users",

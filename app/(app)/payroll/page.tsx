@@ -1,0 +1,142 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Banknote, Target, Users } from "lucide-react";
+import { toast } from "sonner";
+import { useMockUser } from "@/lib/mock-auth";
+import { CURRENT_PERIOD } from "@/lib/data/performance";
+import { fetchPayrollSnapshot, type PayrollSnapshot } from "@/lib/data/payroll";
+import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
+import { formatFCFA, formatFCFACompact } from "@/lib/utils";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { PeriodSelector } from "@/components/performance/period-selector";
+import { ObjectiveProgress } from "@/components/performance/objective-progress";
+import { PayrollTable } from "@/components/payroll/payroll-table";
+import { PayrollExplainer } from "@/components/payroll/payroll-explainer";
+import { ContractDialog } from "@/components/payroll/contract-dialog";
+import { PaymentDialog } from "@/components/payroll/payment-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function PayrollPage() {
+  const { user } = useMockUser();
+  const [period, setPeriod] = useState(CURRENT_PERIOD);
+  const [snapshot, setSnapshot] = useState<PayrollSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const canWrite = user.role !== "commercial";
+
+  const load = useCallback(async () => {
+    try {
+      setSnapshot(await fetchPayrollSnapshot(user, period));
+    } catch {
+      toast.error("Impossible de charger la paie.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, period]);
+
+  useEffect(() => {
+    let active = true;
+    fetchPayrollSnapshot(user, period)
+      .then((data) => {
+        if (active) setSnapshot(data);
+      })
+      .catch(() => toast.error("Impossible de charger la paie."))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, period]);
+
+  const lines = snapshot?.lines ?? [];
+  const totalPay = lines.reduce((s, l) => s + l.total, 0);
+  const totalProduction = lines.reduce((s, l) => s + l.production, 0);
+  const belowTarget = lines.filter(
+    (l) => l.production < OBJECTIF_MENSUEL_COMMERCIAL,
+  ).length;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Paie des commerciaux"
+        description={`Objectif mensuel : ${formatFCFA(OBJECTIF_MENSUEL_COMMERCIAL)} par commercial`}
+        actions={
+          <>
+            <PeriodSelector value={period} onChange={setPeriod} />
+            {canWrite && snapshot && (
+              <>
+                <PaymentDialog
+                  contracts={snapshot.contracts}
+                  period={period}
+                  userId={user.id}
+                  onCreated={load}
+                />
+                <ContractDialog
+                  commercials={lines.map((l) => l.commercial)}
+                  products={snapshot.products}
+                  onCreated={load}
+                />
+              </>
+            )}
+          </>
+        }
+      />
+
+      <PayrollExplainer />
+
+      {loading && !snapshot ? (
+        <Skeleton className="h-64 w-full" />
+      ) : lines.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Aucun commercial"
+          description="Aucun commercial dans votre périmètre."
+        />
+      ) : user.role === "commercial" ? (
+        <>
+          <ObjectiveProgress
+            title="Ma production du mois"
+            target={OBJECTIF_MENSUEL_COMMERCIAL}
+            realized={lines[0].production}
+          />
+          <PayrollTable lines={lines} contracts={snapshot?.contracts ?? []} />
+        </>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Rémunération totale"
+              value={formatFCFACompact(totalPay)}
+              icon={Banknote}
+              tone="gold"
+            />
+            <StatCard
+              label="Production"
+              value={formatFCFACompact(totalProduction)}
+              icon={Target}
+              tone="teal"
+            />
+            <StatCard
+              label="Commerciaux"
+              value={String(lines.length)}
+              icon={Users}
+              tone="success"
+            />
+            <StatCard
+              label="Sous l'objectif"
+              value={String(belowTarget)}
+              icon={AlertTriangle}
+              tone={belowTarget > 0 ? "danger" : "success"}
+              hint={`Objectif ${formatFCFACompact(OBJECTIF_MENSUEL_COMMERCIAL)}`}
+            />
+          </div>
+          <PayrollTable lines={lines} contracts={snapshot?.contracts ?? []} />
+        </>
+      )}
+    </div>
+  );
+}

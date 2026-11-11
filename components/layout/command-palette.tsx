@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Banknote,
   Building2,
   Calculator,
   CheckSquare,
@@ -48,6 +49,7 @@ const PAGES: PageItem[] = [
   { label: "Nouvelle simulation", href: "/simulation", icon: Calculator },
   { label: "Tâches", href: "/tasks", icon: CheckSquare },
   { label: "Objectifs", href: "/performance", icon: Target },
+  { label: "Paie", href: "/payroll", icon: Banknote },
   { label: "Équipe", href: "/users", icon: UsersRound, managerOnly: true },
   {
     label: "Compagnies",

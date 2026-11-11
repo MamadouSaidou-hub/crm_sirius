@@ -34,6 +34,7 @@ import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { TopCommercialsChart } from "@/components/dashboard/top-commercials-chart";
 import { RecentActivities } from "@/components/dashboard/recent-activities";
+import { ProfitabilitySection } from "@/components/dashboard/profitability-section";
 import { UpcomingTasks } from "@/components/dashboard/upcoming-tasks";
 import {
   Card,
@@ -216,6 +217,8 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          <ProfitabilitySection user={user} />
 
           <Card>
             <CardHeader>
