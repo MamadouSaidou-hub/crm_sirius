@@ -9,6 +9,7 @@ import {
   CheckSquare,
   KanbanSquare,
   LayoutDashboard,
+  Percent,
   Phone,
   Settings,
   Target,
@@ -50,6 +51,12 @@ const PAGES: PageItem[] = [
   { label: "Tâches", href: "/tasks", icon: CheckSquare },
   { label: "Objectifs", href: "/performance", icon: Target },
   { label: "Paie", href: "/payroll", icon: Banknote },
+  {
+    label: "Conventions & taux",
+    href: "/commissions",
+    icon: Percent,
+    adminOnly: true,
+  },
   { label: "Équipe", href: "/users", icon: UsersRound, managerOnly: true },
   {
     label: "Compagnies",

@@ -4,37 +4,39 @@
  *
  * Pure and DB-free, built on top of the remuneration engine.
  *
- * - Cabinet income = TAUX_CABINET x ALL payments received in the period, for
- *   every contract (the insurer pays the cabinet on each payment, whatever the
- *   contract age).
+ * - Cabinet income = for every payment received in the period, the amount x
+ *   the cabinet commission rate of that contract's agreement (any contract
+ *   age: the insurer pays the cabinet on each payment).
  * - Cabinet expense = sum of the commercials' total remuneration for the
  *   period (base fixe + performance bonus + acquisition commission).
  */
 
-import { TAUX_CABINET } from "@/lib/payroll/config";
 import {
   calculerRemuneration,
   type ContratInput,
   type ProduitInput,
   type VersementInput,
 } from "@/lib/payroll/engine";
+import type { PeriodRates } from "@/lib/payroll/rates";
 
 export interface ProfitabilityInput {
   commercialIds: string[];
   contrats: ContratInput[];
   versements: VersementInput[];
   produits: ProduitInput[];
+  /** Resolves the plan and cabinet rates in force for a period. */
+  ratesFor: (periode: string) => PeriodRates;
 }
 
 export interface ProfitabilityPoint {
   periode: string;
   /** All payments received in the period, any contract age. */
   encaisse: number;
-  /** Cabinet commission on contracts still paying the commercial (months 1-3). */
+  /** Cabinet commission on contracts still paying the commercial. */
   commissionPerimetre: number;
-  /** Cabinet commission on contracts out of scope (month 4+): pure margin. */
+  /** Cabinet commission on contracts out of scope: pure margin. */
   commissionHorsPerimetre: number;
-  /** TAUX_CABINET x encaisse. */
+  /** commissionPerimetre + commissionHorsPerimetre. */
   commissionCabinet: number;
   baseFixe: number;
   primePerformance: number;
@@ -54,14 +56,14 @@ export interface CommercialProfitability {
   net: number;
 }
 
-/** Sum of payments received in `periode` on the given contracts. */
-function encaisseDuMois(
+/** Sum of a contract's payments received in `periode`. */
+function encaisseContrat(
   periode: string,
-  contratIds: Set<string>,
+  contratId: string,
   versements: VersementInput[],
 ): number {
   return versements
-    .filter((v) => v.periode === periode && contratIds.has(v.contratId))
+    .filter((v) => v.periode === periode && v.contratId === contratId)
     .reduce((sum, v) => sum + v.montant, 0);
 }
 
@@ -71,11 +73,10 @@ export function computeProfitability(
 ): ProfitabilityPoint[] {
   const { commercialIds, contrats, versements, produits } = input;
   const ids = new Set(commercialIds);
-  const contratIds = new Set(
-    contrats.filter((c) => ids.has(c.commercialId)).map((c) => c.id),
-  );
+  const contratsEquipe = contrats.filter((c) => ids.has(c.commercialId));
 
   return periodes.map((periode) => {
+    const { plan, tauxCabinet } = input.ratesFor(periode);
     const lignes = commercialIds.map((commercialId) =>
       calculerRemuneration({
         commercialId,
@@ -83,19 +84,36 @@ export function computeProfitability(
         contrats: contrats.filter((c) => c.commercialId === commercialId),
         versements,
         produits,
+        plan,
+        tauxCabinet,
       }),
     );
+    const eligibles = new Set(
+      lignes.flatMap((l) =>
+        l.contrats.filter((c) => c.eligible).map((c) => c.contratId),
+      ),
+    );
 
-    const encaisse = encaisseDuMois(periode, contratIds, versements);
-    const productionPerimetre = lignes.reduce((s, l) => s + l.production, 0);
+    let encaisse = 0;
+    let commissionPerimetre = 0;
+    let commissionHorsPerimetre = 0;
+    for (const contrat of contratsEquipe) {
+      const montant = encaisseContrat(periode, contrat.id, versements);
+      if (montant === 0) continue;
+      const commission = montant * tauxCabinet(contrat.id);
+      encaisse += montant;
+      if (eligibles.has(contrat.id)) commissionPerimetre += commission;
+      else commissionHorsPerimetre += commission;
+    }
+
     const depensesPaie = lignes.reduce((s, l) => s + l.total, 0);
-    const commissionCabinet = encaisse * TAUX_CABINET;
+    const commissionCabinet = commissionPerimetre + commissionHorsPerimetre;
 
     return {
       periode,
       encaisse,
-      commissionPerimetre: productionPerimetre * TAUX_CABINET,
-      commissionHorsPerimetre: (encaisse - productionPerimetre) * TAUX_CABINET,
+      commissionPerimetre,
+      commissionHorsPerimetre,
       commissionCabinet,
       baseFixe: lignes.reduce((s, l) => s + l.baseFixe, 0),
       primePerformance: lignes.reduce((s, l) => s + l.primePerformance, 0),
@@ -115,6 +133,7 @@ export function computeCommercialProfitability(
   periode: string,
 ): CommercialProfitability[] {
   const { commercialIds, contrats, versements, produits } = input;
+  const { plan, tauxCabinet } = input.ratesFor(periode);
 
   return commercialIds.map((commercialId) => {
     const siens = contrats.filter((c) => c.commercialId === commercialId);
@@ -124,13 +143,18 @@ export function computeCommercialProfitability(
       contrats: siens,
       versements,
       produits,
+      plan,
+      tauxCabinet,
     }).total;
-    const encaisse = encaisseDuMois(
-      periode,
-      new Set(siens.map((c) => c.id)),
-      versements,
-    );
-    const commissionCabinet = encaisse * TAUX_CABINET;
+
+    let encaisse = 0;
+    let commissionCabinet = 0;
+    for (const contrat of siens) {
+      const montant = encaisseContrat(periode, contrat.id, versements);
+      encaisse += montant;
+      commissionCabinet += montant * tauxCabinet(contrat.id);
+    }
+
     return {
       commercialId,
       encaisse,

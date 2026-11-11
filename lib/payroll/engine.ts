@@ -3,20 +3,17 @@
  *
  * Pure, DB-free and UI-free by design: every function takes plain data in and
  * returns plain data out, so it can be unit-tested without a database.
+ * Rates are never read from constants: the caller passes the remuneration plan
+ * and a per-contract cabinet-rate lookup resolved for the period (see
+ * `rates.ts`), so changing a rate is a data change, not a code change.
  *
  * GOLDEN RULE: a contract only remunerates its commercial for its first
- * DUREE_REMUNERATION_MOIS months of existence (signature month = month 1).
- * From month 4 onward it is entirely out of the commercial's scope: no more
- * acquisition commission, and its payments no longer count in the monthly
- * production.
+ * `plan.dureeMois` months of existence (signature month = month 1). After
+ * that it is entirely out of the commercial's scope: no more acquisition
+ * commission, and its payments no longer count in the monthly production.
  */
 
-import {
-  BASE_FIXE,
-  DUREE_REMUNERATION_MOIS,
-  TAUX_COMMISSION_ACQUISITION,
-  TAUX_PERFORMANCE,
-} from "@/lib/payroll/config";
+import type { RemunerationPlan } from "@/lib/payroll/rates";
 
 export type AssietteType = "FIGEE" | "VARIABLE";
 export type FrequenceCotisation = "mensuelle" | "annuelle";
@@ -28,7 +25,7 @@ export interface ProduitInput {
    * Kept as data for future evolution; acquisition commission currently
    * treats annual and monthly contributions the same way (frozen basis).
    * TODO: branch on this field if annual premiums need a different treatment
-   * (e.g. spreading the annual premium across the 3 eligible months).
+   * (e.g. spreading the annual premium across the eligible months).
    */
   frequenceCotisation: FrequenceCotisation;
 }
@@ -59,6 +56,8 @@ export interface ContratDetail {
   eligible: boolean;
   motifExclusion: string | null;
   assiette: number;
+  /** Effective acquisition rate: cabinet rate x retrocession (0 when not eligible). */
+  tauxCommission: number;
   commissionAcquisition: number;
   production: number;
 }
@@ -91,9 +90,9 @@ export function ageContrat(periode: string, dateSignature: string): number {
   return p.annee * 12 + p.mois - (s.annee * 12 + s.mois) + 1;
 }
 
-/** A contract remunerates its commercial only while age is in [1, DUREE_REMUNERATION_MOIS]. */
-export function estEligible(age: number): boolean {
-  return age >= 1 && age <= DUREE_REMUNERATION_MOIS;
+/** A contract remunerates its commercial only while age is in [1, dureeMois]. */
+export function estEligible(age: number, dureeMois: number): boolean {
+  return age >= 1 && age <= dureeMois;
 }
 
 /**
@@ -126,31 +125,36 @@ export interface CalculerRemunerationInput {
   versements: VersementInput[];
   /** Products referenced by `contrats`. */
   produits: ProduitInput[];
+  /** Remuneration plan in force for `periode`. */
+  plan: RemunerationPlan;
+  /** Cabinet commission rate (0..1) applying to a contract in `periode`. */
+  tauxCabinet: (contratId: string) => number;
 }
 
 /**
  * Computes a commercial's remuneration for one accounting month.
- * Remuneration(mois) = BASE_FIXE + PrimePerformance(mois) + Sum(CommissionAcquisition(mois))
+ * Remuneration(mois) = baseFixe + PrimePerformance(mois) + Sum(CommissionAcquisition(mois))
  */
 export function calculerRemuneration(
   input: CalculerRemunerationInput,
 ): RemunerationResult {
-  const { commercialId, periode, contrats, versements, produits } = input;
+  const { commercialId, periode, contrats, versements, produits, plan } = input;
   const produitsById = new Map(produits.map((p) => [p.id, p]));
 
   const contratsDetail: ContratDetail[] = contrats.map((contrat) => {
     const age = ageContrat(periode, contrat.dateSignature);
 
-    if (!estEligible(age)) {
+    if (!estEligible(age, plan.dureeMois)) {
       return {
         contratId: contrat.id,
         age,
         eligible: false,
         motifExclusion:
-          age > DUREE_REMUNERATION_MOIS
-            ? `Sorti du périmètre (>${DUREE_REMUNERATION_MOIS} mois)`
+          age > plan.dureeMois
+            ? `Sorti du périmètre (>${plan.dureeMois} mois)`
             : "Contrat pas encore signé sur cette période",
         assiette: 0,
+        tauxCommission: 0,
         commissionAcquisition: 0,
         production: 0,
       };
@@ -169,6 +173,7 @@ export function calculerRemuneration(
     }
 
     const assiette = calculerAssiette(produit, contrat, age, versementsDuMois);
+    const tauxCommission = input.tauxCabinet(contrat.id) * plan.tauxRetrocession;
 
     return {
       contratId: contrat.id,
@@ -176,13 +181,14 @@ export function calculerRemuneration(
       eligible: true,
       motifExclusion: null,
       assiette,
-      commissionAcquisition: assiette * TAUX_COMMISSION_ACQUISITION,
+      tauxCommission,
+      commissionAcquisition: assiette * tauxCommission,
       production,
     };
   });
 
   const production = contratsDetail.reduce((sum, c) => sum + c.production, 0);
-  const primePerformance = production * TAUX_PERFORMANCE;
+  const primePerformance = production * plan.tauxPerformance;
   const commissionAcquisitionTotale = contratsDetail.reduce(
     (sum, c) => sum + c.commissionAcquisition,
     0,
@@ -191,11 +197,11 @@ export function calculerRemuneration(
   return {
     commercialId,
     periode,
-    baseFixe: BASE_FIXE,
+    baseFixe: plan.baseFixe,
     production,
     primePerformance,
     commissionAcquisitionTotale,
-    total: BASE_FIXE + primePerformance + commissionAcquisitionTotale,
+    total: plan.baseFixe + primePerformance + commissionAcquisitionTotale,
     contrats: contratsDetail,
   };
 }

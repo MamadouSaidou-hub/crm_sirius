@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Banknote, Target, Users } from "lucide-react";
-import { toast } from "sonner";
 import { useMockUser } from "@/lib/mock-auth";
+import { MissingAgreementError, MissingPlanError } from "@/lib/payroll/rates";
 import { CURRENT_PERIOD } from "@/lib/data/performance";
 import { fetchPayrollSnapshot, type PayrollSnapshot } from "@/lib/data/payroll";
 import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
@@ -19,19 +19,29 @@ import { ContractDialog } from "@/components/payroll/contract-dialog";
 import { PaymentDialog } from "@/components/payroll/payment-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Missing agreement/plan errors are actionable for the admin: show them as-is. */
+function describeLoadError(error: unknown): string {
+  if (error instanceof MissingAgreementError || error instanceof MissingPlanError) {
+    return `${error.message} Un administrateur doit l'ajouter dans « Conventions & taux ».`;
+  }
+  return "Impossible de charger la paie.";
+}
+
 export default function PayrollPage() {
   const { user } = useMockUser();
   const [period, setPeriod] = useState(CURRENT_PERIOD);
   const [snapshot, setSnapshot] = useState<PayrollSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const canWrite = user.role !== "commercial";
 
   const load = useCallback(async () => {
     try {
       setSnapshot(await fetchPayrollSnapshot(user, period));
-    } catch {
-      toast.error("Impossible de charger la paie.");
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(describeLoadError(error));
     } finally {
       setLoading(false);
     }
@@ -41,9 +51,13 @@ export default function PayrollPage() {
     let active = true;
     fetchPayrollSnapshot(user, period)
       .then((data) => {
-        if (active) setSnapshot(data);
+        if (!active) return;
+        setSnapshot(data);
+        setLoadError(null);
       })
-      .catch(() => toast.error("Impossible de charger la paie."))
+      .catch((error: unknown) => {
+        if (active) setLoadError(describeLoadError(error));
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -86,10 +100,21 @@ export default function PayrollPage() {
         }
       />
 
-      <PayrollExplainer />
+      {snapshot && (
+        <PayrollExplainer
+          plan={snapshot.plan}
+          cabinetRates={[...new Set(Object.values(snapshot.cabinetRates))]}
+        />
+      )}
 
-      {loading && !snapshot ? (
-        <Skeleton className="h-64 w-full" />
+      {loadError && (
+        <p className="rounded-md border border-sirius-danger/40 bg-sirius-danger/10 p-3 text-sm text-sirius-danger">
+          {loadError}
+        </p>
+      )}
+
+      {!snapshot ? (
+        loading ? <Skeleton className="h-64 w-full" /> : null
       ) : lines.length === 0 ? (
         <EmptyState
           icon={Users}
@@ -103,7 +128,11 @@ export default function PayrollPage() {
             target={OBJECTIF_MENSUEL_COMMERCIAL}
             realized={lines[0].production}
           />
-          <PayrollTable lines={lines} contracts={snapshot?.contracts ?? []} />
+          <PayrollTable
+            lines={lines}
+            contracts={snapshot.contracts}
+            plan={snapshot.plan}
+          />
         </>
       ) : (
         <>
@@ -134,7 +163,11 @@ export default function PayrollPage() {
               hint={`Objectif ${formatFCFACompact(OBJECTIF_MENSUEL_COMMERCIAL)}`}
             />
           </div>
-          <PayrollTable lines={lines} contracts={snapshot?.contracts ?? []} />
+          <PayrollTable
+            lines={lines}
+            contracts={snapshot.contracts}
+            plan={snapshot.plan}
+          />
         </>
       )}
     </div>

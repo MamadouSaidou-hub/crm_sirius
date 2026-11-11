@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@/lib/types";
+import type { ProductType, User } from "@/lib/types";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
+import {
+  fetchCommissionAgreements,
+  fetchRemunerationPlans,
+} from "@/lib/data/commissions";
 import {
   calculerRemuneration,
   type ContratInput,
@@ -8,6 +12,12 @@ import {
   type RemunerationResult,
   type VersementInput,
 } from "@/lib/payroll/engine";
+import {
+  makeRatesResolver,
+  type CommissionAgreement,
+  type RemunerationPlan,
+  type RemunerationPlanEntry,
+} from "@/lib/payroll/rates";
 import {
   computeCommercialProfitability,
   computeProfitability,
@@ -20,6 +30,8 @@ import {
 export interface PayrollProduct extends ProduitInput {
   code: string;
   label: string;
+  /** Product line, used to pick the cabinet commission agreement. */
+  productType: ProductType;
   defaultSubscription: number;
   minPayment: number;
 }
@@ -29,6 +41,7 @@ export interface PayrollContract extends ContratInput {
   durationMonths: number;
   status: "actif" | "resilie";
   prospectId: string | null;
+  insurerId: string;
 }
 
 export interface PayrollLine extends RemunerationResult {
@@ -40,11 +53,16 @@ export interface PayrollSnapshot {
   contracts: PayrollContract[];
   payments: VersementInput[];
   lines: PayrollLine[];
+  /** Plan in force for the requested period. */
+  plan: RemunerationPlan;
+  /** Cabinet commission rate (0..1) by contract id, for the requested period. */
+  cabinetRates: Record<string, number>;
 }
 
 export interface NewPayrollContract {
   commercialId: string;
   productId: string;
+  insurerId: string;
   clientName: string;
   signatureDate: string;
   subscriptionAmount: number;
@@ -59,6 +77,7 @@ interface ProductRow {
   id: string;
   code: string;
   label: string;
+  product_type: ProductType;
   default_subscription: number;
   min_payment: number;
   assiette_type: ProduitInput["assietteType"];
@@ -69,6 +88,7 @@ interface ContractRow {
   id: string;
   commercial_id: string;
   product_id: string;
+  insurer_id: string;
   prospect_id: string | null;
   client_name: string;
   signature_date: string;
@@ -91,13 +111,16 @@ interface PaymentRow {
 export async function fetchPayrollProducts(): Promise<PayrollProduct[]> {
   const { data, error } = await createClient()
     .from("payroll_products")
-    .select("id,code,label,default_subscription,min_payment,assiette_type,frequency")
+    .select(
+      "id,code,label,product_type,default_subscription,min_payment,assiette_type,frequency",
+    )
     .order("label");
   if (error) throw error;
   return ((data ?? []) as ProductRow[]).map((r) => ({
     id: r.id,
     code: r.code,
     label: r.label,
+    productType: r.product_type,
     defaultSubscription: Number(r.default_subscription),
     minPayment: Number(r.min_payment),
     assietteType: r.assiette_type,
@@ -109,7 +132,7 @@ export async function fetchPayrollContracts(): Promise<PayrollContract[]> {
   const { data, error } = await createClient()
     .from("payroll_contracts")
     .select(
-      "id,commercial_id,product_id,prospect_id,client_name,signature_date,subscription_amount,reference_premium,duration_months,status",
+      "id,commercial_id,product_id,insurer_id,prospect_id,client_name,signature_date,subscription_amount,reference_premium,duration_months,status",
     )
     .order("signature_date", { ascending: false });
   if (error) throw error;
@@ -117,6 +140,7 @@ export async function fetchPayrollContracts(): Promise<PayrollContract[]> {
     id: r.id,
     commercialId: r.commercial_id,
     produitId: r.product_id,
+    insurerId: r.insurer_id,
     prospectId: r.prospect_id,
     clientName: r.client_name,
     dateSignature: r.signature_date,
@@ -146,17 +170,37 @@ export interface PayrollRaw {
   contracts: PayrollContract[];
   payments: VersementInput[];
   commercials: User[];
+  agreements: CommissionAgreement[];
+  plans: RemunerationPlanEntry[];
 }
 
 /** Loads every row the current user may see (RLS scopes them) — once. */
 export async function fetchPayrollRaw(current: User): Promise<PayrollRaw> {
-  const [products, contracts, payments, commercials] = await Promise.all([
-    fetchPayrollProducts(),
-    fetchPayrollContracts(),
-    fetchPayrollPayments(),
-    fetchAssignableCommercials(current),
-  ]);
-  return { products, contracts, payments, commercials };
+  const [products, contracts, payments, commercials, agreements, plans] =
+    await Promise.all([
+      fetchPayrollProducts(),
+      fetchPayrollContracts(),
+      fetchPayrollPayments(),
+      fetchAssignableCommercials(current),
+      fetchCommissionAgreements(),
+      fetchRemunerationPlans(),
+    ]);
+  return { products, contracts, payments, commercials, agreements, plans };
+}
+
+/** Builds the per-period plan / cabinet-rate resolver from the loaded rows. */
+export function ratesResolverFor(raw: PayrollRaw) {
+  const productById = new Map(raw.products.map((p) => [p.id, p]));
+  const contractById = new Map(raw.contracts.map((c) => [c.id, c]));
+
+  return makeRatesResolver(raw.agreements, raw.plans, (contratId) => {
+    const contract = contractById.get(contratId);
+    const product = contract && productById.get(contract.produitId);
+    if (!contract || !product) {
+      throw new Error(`Contrat ou produit introuvable (${contratId}).`);
+    }
+    return { insurerId: contract.insurerId, productType: product.productType };
+  });
 }
 
 /** Runs the pure engine once per visible commercial for `period`. */
@@ -164,6 +208,7 @@ export function computePayrollLines(
   raw: PayrollRaw,
   period: string,
 ): PayrollLine[] {
+  const { plan, tauxCabinet } = ratesResolverFor(raw)(period);
   return raw.commercials.map((commercial) => ({
     ...calculerRemuneration({
       commercialId: commercial.id,
@@ -171,6 +216,8 @@ export function computePayrollLines(
       contrats: raw.contracts.filter((c) => c.commercialId === commercial.id),
       versements: raw.payments,
       produits: raw.products,
+      plan,
+      tauxCabinet,
     }),
     commercial,
   }));
@@ -181,11 +228,16 @@ export async function fetchPayrollSnapshot(
   period: string,
 ): Promise<PayrollSnapshot> {
   const raw = await fetchPayrollRaw(current);
+  const { plan, tauxCabinet } = ratesResolverFor(raw)(period);
   return {
     products: raw.products,
     contracts: raw.contracts,
     payments: raw.payments,
     lines: computePayrollLines(raw, period),
+    plan,
+    cabinetRates: Object.fromEntries(
+      raw.contracts.map((c) => [c.id, tauxCabinet(c.id)]),
+    ),
   };
 }
 
@@ -207,6 +259,7 @@ export async function fetchProfitability(
     contrats: raw.contracts,
     versements: raw.payments,
     produits: raw.products,
+    ratesFor: ratesResolverFor(raw),
   };
   const latest = periods[periods.length - 1];
   const byId = new Map(raw.commercials.map((c) => [c.id, c]));
@@ -235,6 +288,7 @@ export async function createPayrollContract(
     p_premium: input.referencePremium,
     p_duration: input.durationMonths,
     p_prospect: input.prospectId ?? null,
+    p_insurer: input.insurerId,
   });
   if (error) throw error;
   return data as string;

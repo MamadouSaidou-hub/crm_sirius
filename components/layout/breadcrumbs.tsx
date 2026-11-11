@@ -13,6 +13,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   kanban: "Pipeline",
   tasks: "Tâches",
   payroll: "Paie",
+  commissions: "Conventions & taux",
   performance: "Objectifs",
   users: "Équipe",
   settings: "Paramètres",

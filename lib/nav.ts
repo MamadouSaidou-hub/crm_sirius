@@ -5,6 +5,7 @@ import {
   CheckSquare,
   KanbanSquare,
   LayoutDashboard,
+  Percent,
   Settings,
   Target,
   Users,
@@ -36,6 +37,12 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Tâches", href: "/tasks", icon: CheckSquare },
   { label: "Objectifs", href: "/performance", icon: Target },
   { label: "Paie", href: "/payroll", icon: Banknote },
+  {
+    label: "Conventions & taux",
+    href: "/commissions",
+    icon: Percent,
+    roles: ["admin"],
+  },
   {
     label: "Équipe",
     href: "/users",

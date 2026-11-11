@@ -1,13 +1,6 @@
 import { Info } from "lucide-react";
-import {
-  BASE_FIXE,
-  DUREE_REMUNERATION_MOIS,
-  OBJECTIF_MENSUEL_COMMERCIAL,
-  TAUX_CABINET,
-  TAUX_COMMISSION_ACQUISITION,
-  TAUX_PERFORMANCE,
-  TAUX_RETROCESSION,
-} from "@/lib/payroll/config";
+import type { RemunerationPlan } from "@/lib/payroll/rates";
+import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatFCFA } from "@/lib/utils";
 
@@ -16,8 +9,26 @@ export function formatRate(rate: number): string {
   return `${(rate * 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
 }
 
+interface PayrollExplainerProps {
+  /** Plan in force for the displayed period. */
+  plan: RemunerationPlan;
+  /** Distinct cabinet commission rates (0..1) applying to the displayed contracts. */
+  cabinetRates: number[];
+}
+
+/** "3 %", or "3 % à 12 %" when several agreements apply. */
+function describeRates(rates: number[]): string {
+  if (rates.length === 0) return "le taux de la convention";
+  const min = Math.min(...rates);
+  const max = Math.max(...rates);
+  return min === max
+    ? formatRate(min)
+    : `${formatRate(min)} à ${formatRate(max)}`;
+}
+
 /** Collapsible card explaining how a commercial's monthly pay is computed. */
-export function PayrollExplainer() {
+export function PayrollExplainer({ plan, cabinetRates }: PayrollExplainerProps) {
+  const duree = plan.dureeMois;
   return (
     <Card>
       <CardContent className="p-0">
@@ -39,36 +50,34 @@ export function PayrollExplainer() {
             <ul className="list-disc space-y-2 pl-5">
               <li>
                 <span className="text-foreground">Base fixe :</span>{" "}
-                {formatFCFA(BASE_FIXE)}, garantie chaque mois, même sans
+                {formatFCFA(plan.baseFixe)}, garantie chaque mois, même sans
                 production.
               </li>
               <li>
                 <span className="text-foreground">Prime de performance :</span>{" "}
-                {formatRate(TAUX_PERFORMANCE)} de la production du mois (somme
-                des versements des contrats encore dans le périmètre).
+                {formatRate(plan.tauxPerformance)} de la production du mois
+                (somme des versements des contrats encore dans le périmètre).
               </li>
               <li>
                 <span className="text-foreground">
                   Commission d&apos;acquisition :
                 </span>{" "}
-                le cabinet touche {formatRate(TAUX_CABINET)} de commission de la
-                compagnie et en reverse {formatRate(TAUX_RETROCESSION)} au
-                commercial, soit {formatRate(TAUX_COMMISSION_ACQUISITION)} de
-                l&apos;assiette du contrat.
+                le cabinet touche {describeRates(cabinetRates)} de commission de
+                la compagnie (selon la convention) et en reverse{" "}
+                {formatRate(plan.tauxRetrocession)} au commercial.
               </li>
             </ul>
 
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <p className="mb-1 font-medium text-foreground">
-                Règle des {DUREE_REMUNERATION_MOIS} mois
+                Règle des {duree} mois
               </p>
               <p>
-                Un contrat ne rémunère son commercial que pendant ses{" "}
-                {DUREE_REMUNERATION_MOIS} premiers mois : le mois de signature
-                (souscription + 1ʳᵉ cotisation) est le mois 1, puis les 2 mois
-                suivants. À partir du mois {DUREE_REMUNERATION_MOIS + 1}, tout
-                revient au cabinet, quelle que soit la durée du contrat (10
-                ans ou plus).
+                Un contrat ne rémunère son commercial que pendant ses {duree}{" "}
+                premiers mois : le mois de signature (souscription + 1ʳᵉ
+                cotisation) est le mois 1, puis les {duree - 1} mois suivants. À
+                partir du mois {duree + 1}, tout revient au cabinet, quelle que
+                soit la durée du contrat (10 ans ou plus).
               </p>
             </div>
 
@@ -90,7 +99,9 @@ export function PayrollExplainer() {
 
             <p>
               Objectif mensuel : {formatFCFA(OBJECTIF_MENSUEL_COMMERCIAL)} de
-              production par commercial.
+              production par commercial. Les taux sont fixés par l&apos;admin
+              (page Conventions &amp; taux) et s&apos;appliquent à partir de leur
+              date d&apos;effet.
             </p>
           </div>
         </details>

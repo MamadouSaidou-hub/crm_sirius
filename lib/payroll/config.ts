@@ -1,30 +1,34 @@
 /**
- * Named business constants for the commercial remuneration engine.
- * Change rates/amounts here only — nowhere else.
+ * Static business constants for payroll.
+ *
+ * Commission rates and the remuneration plan are NOT hard-coded here any more:
+ * they are effective-dated data (tables `commission_agreements` and
+ * `remuneration_plans`, edited by an admin). The values below only mirror the
+ * initial seed and serve as test fixtures.
  */
 
-/** Fixed monthly amount guaranteed to every active commercial (FCFA). */
-export const BASE_FIXE = 15_000;
-
-/** Performance bonus rate applied to the month's eligible production. */
-export const TAUX_PERFORMANCE = 0.06;
-
-/** Brokerage commission rate the cabinet receives from the insurer (NSIA). */
-export const TAUX_CABINET = 0.03;
-
-/** Share of the cabinet's commission retroceded to the commercial. */
-export const TAUX_RETROCESSION = 0.1;
-
-/** Effective acquisition commission rate: TAUX_CABINET * TAUX_RETROCESSION. */
-export const TAUX_COMMISSION_ACQUISITION = TAUX_CABINET * TAUX_RETROCESSION;
-
-/**
- * A contract only remunerates its commercial for its first N months
- * (month 1 = subscription + first contribution, months 2 and 3 = following
- * contributions). After that, every payment goes to the cabinet, whatever the
- * contract duration (10 years, 50 years...).
- */
-export const DUREE_REMUNERATION_MOIS = 3;
+import type { RemunerationPlan } from "@/lib/payroll/rates";
 
 /** Monthly production target applied to every commercial (FCFA). */
 export const OBJECTIF_MENSUEL_COMMERCIAL = 500_000;
+
+/**
+ * Initial plan (seed of `remuneration_plans`): 15 000 F fixed, 6 % bonus on
+ * production, 10 % of the cabinet commission passed on to the commercial, for
+ * a contract's first 3 months (month 1 = signature with subscription + first
+ * contribution). After that, every payment goes to the cabinet, whatever the
+ * contract duration.
+ */
+export const PLAN_INITIAL: RemunerationPlan = {
+  baseFixe: 15_000,
+  tauxPerformance: 0.06,
+  tauxRetrocession: 0.1,
+  dureeMois: 3,
+};
+
+/**
+ * Initial NSIA life agreement (seed of `commission_agreements`): 3 % on every
+ * payment received, on the amount INCLUDING taxes — exactly the amount entered
+ * in the app.
+ */
+export const TAUX_CABINET_NSIA_VIE = 0.03;

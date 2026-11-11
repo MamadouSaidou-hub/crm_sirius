@@ -3,12 +3,8 @@
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { PayrollContract, PayrollLine } from "@/lib/data/payroll";
-import {
-  DUREE_REMUNERATION_MOIS,
-  OBJECTIF_MENSUEL_COMMERCIAL,
-  TAUX_COMMISSION_ACQUISITION,
-  TAUX_PERFORMANCE,
-} from "@/lib/payroll/config";
+import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
+import type { RemunerationPlan } from "@/lib/payroll/rates";
 import { formatRate } from "@/components/payroll/payroll-explainer";
 import { attainment } from "@/lib/data/performance";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -26,10 +22,12 @@ import { cn, formatFCFA } from "@/lib/utils";
 interface PayrollTableProps {
   lines: PayrollLine[];
   contracts: PayrollContract[];
+  /** Plan in force for the displayed period. */
+  plan: RemunerationPlan;
 }
 
 /** One row per commercial, expandable to the per-contract breakdown. */
-export function PayrollTable({ lines, contracts }: PayrollTableProps) {
+export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const contractById = new Map(contracts.map((c) => [c.id, c]));
 
@@ -43,7 +41,7 @@ export function PayrollTable({ lines, contracts }: PayrollTableProps) {
             <TableHead className="text-right">Objectif</TableHead>
             <TableHead className="text-right">Base fixe</TableHead>
             <TableHead className="text-right">
-              Prime ({formatRate(TAUX_PERFORMANCE)})
+              Prime ({formatRate(plan.tauxPerformance)})
             </TableHead>
             <TableHead className="text-right">Commissions</TableHead>
             <TableHead className="text-right">Total</TableHead>
@@ -122,14 +120,14 @@ export function PayrollTable({ lines, contracts }: PayrollTableProps) {
                               {detail.eligible ? (
                                 <span className="flex flex-wrap items-center gap-3 text-muted-foreground">
                                   <Badge variant="outline">
-                                    Mois {detail.age}/{DUREE_REMUNERATION_MOIS}
+                                    Mois {detail.age}/{plan.dureeMois}
                                   </Badge>
                                   <span>
                                     Production {formatFCFA(detail.production)}
                                   </span>
                                   <span className="text-foreground">
                                     Commission : {formatFCFA(detail.assiette)}{" "}
-                                    × {formatRate(TAUX_COMMISSION_ACQUISITION)}{" "}
+                                    × {formatRate(detail.tauxCommission)}{" "}
                                     = {formatFCFA(detail.commissionAcquisition)}
                                   </span>
                                 </span>

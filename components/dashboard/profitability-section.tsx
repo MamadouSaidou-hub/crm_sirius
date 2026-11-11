@@ -6,8 +6,6 @@ import type { User } from "@/lib/types";
 import { fetchProfitability, type ProfitabilitySnapshot } from "@/lib/data/payroll";
 import { recentPeriods } from "@/lib/data/performance";
 import { periodLabel } from "@/lib/date";
-import { TAUX_CABINET } from "@/lib/payroll/config";
-import { formatRate } from "@/components/payroll/payroll-explainer";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ProfitabilityChart } from "@/components/dashboard/profitability-chart";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -69,8 +67,8 @@ export function ProfitabilitySection({ user }: { user: User }) {
         </h2>
         <p className="text-sm text-muted-foreground">
           {label} — ce que le cabinet dépense pour sa force de vente, face à la
-          commission de courtage ({formatRate(TAUX_CABINET)}) qu&apos;elle lui
-          rapporte.
+          commission de courtage (selon les conventions avec les compagnies)
+          qu&apos;elle lui rapporte.
         </p>
       </div>
 

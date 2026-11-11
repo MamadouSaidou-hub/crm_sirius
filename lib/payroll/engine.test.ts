@@ -3,14 +3,15 @@ import {
   ageContrat,
   calculerRemuneration,
   estEligible,
+  type CalculerRemunerationInput,
   type ContratInput,
   type ProduitInput,
   type VersementInput,
 } from "@/lib/payroll/engine";
 import {
-  BASE_FIXE,
   OBJECTIF_MENSUEL_COMMERCIAL,
-  TAUX_COMMISSION_ACQUISITION,
+  PLAN_INITIAL,
+  TAUX_CABINET_NSIA_VIE,
 } from "@/lib/payroll/config";
 
 const LIBRE_RETRAITE: ProduitInput = {
@@ -26,6 +27,19 @@ const RETRAITE_SIMPLE: ProduitInput = {
 };
 
 const COMMERCIAL = "u-1";
+const BASE_FIXE = PLAN_INITIAL.baseFixe;
+
+/** Runs the engine with the initial plan and the NSIA life rate unless overridden. */
+function calc(
+  input: Omit<CalculerRemunerationInput, "plan" | "tauxCabinet"> &
+    Partial<Pick<CalculerRemunerationInput, "plan" | "tauxCabinet">>,
+) {
+  return calculerRemuneration({
+    plan: PLAN_INITIAL,
+    tauxCabinet: () => TAUX_CABINET_NSIA_VIE,
+    ...input,
+  });
+}
 
 function versement(
   id: string,
@@ -37,11 +51,16 @@ function versement(
   return { id, contratId, periode, montant, estSouscription };
 }
 
-describe("config", () => {
-  it("keeps the agreed constants", () => {
-    expect(BASE_FIXE).toBe(15_000);
+describe("initial configuration", () => {
+  it("keeps the agreed values", () => {
+    expect(PLAN_INITIAL).toEqual({
+      baseFixe: 15_000,
+      tauxPerformance: 0.06,
+      tauxRetrocession: 0.1,
+      dureeMois: 3,
+    });
+    expect(TAUX_CABINET_NSIA_VIE).toBe(0.03);
     expect(OBJECTIF_MENSUEL_COMMERCIAL).toBe(500_000);
-    expect(TAUX_COMMISSION_ACQUISITION).toBeCloseTo(0.003);
   });
 });
 
@@ -63,12 +82,16 @@ describe("ageContrat", () => {
 });
 
 describe("estEligible", () => {
-  it("is true only for ages 1 to 3", () => {
-    expect(estEligible(0)).toBe(false);
-    expect(estEligible(1)).toBe(true);
-    expect(estEligible(2)).toBe(true);
-    expect(estEligible(3)).toBe(true);
-    expect(estEligible(4)).toBe(false);
+  it("is true only for ages 1 to dureeMois", () => {
+    expect(estEligible(0, 3)).toBe(false);
+    expect(estEligible(1, 3)).toBe(true);
+    expect(estEligible(3, 3)).toBe(true);
+    expect(estEligible(4, 3)).toBe(false);
+  });
+
+  it("follows the duration it is given", () => {
+    expect(estEligible(3, 2)).toBe(false);
+    expect(estEligible(6, 6)).toBe(true);
   });
 });
 
@@ -83,7 +106,7 @@ describe("calculerRemuneration — Libre retraite (reference case)", () => {
   };
 
   const run = (periode: string, versements: VersementInput[]) =>
-    calculerRemuneration({
+    calc({
       commercialId: COMMERCIAL,
       periode,
       contrats: [contrat],
@@ -132,6 +155,63 @@ describe("calculerRemuneration — Libre retraite (reference case)", () => {
   });
 });
 
+describe("calculerRemuneration — rates come from the inputs, not from constants", () => {
+  const contrat: ContratInput = {
+    id: "c-1",
+    commercialId: COMMERCIAL,
+    produitId: LIBRE_RETRAITE.id,
+    dateSignature: "2025-01-10",
+    souscriptionMontant: 0,
+    cotisationReference: 100_000,
+  };
+  const base = {
+    commercialId: COMMERCIAL,
+    periode: "2025-01",
+    contrats: [contrat],
+    versements: [versement("v", "c-1", "2025-01", 100_000)],
+    produits: [LIBRE_RETRAITE],
+  };
+
+  it("a negotiated cabinet rate flows into the acquisition commission", () => {
+    // 4 % cabinet x 10 % retrocession = 0.4 % of 100 000 = 400
+    const result = calc({ ...base, tauxCabinet: () => 0.04 });
+    expect(result.contrats[0]?.tauxCommission).toBeCloseTo(0.004);
+    expect(result.commissionAcquisitionTotale).toBeCloseTo(400);
+  });
+
+  it("each contract uses its own cabinet rate", () => {
+    const second: ContratInput = { ...contrat, id: "c-2" };
+    const result = calc({
+      ...base,
+      contrats: [contrat, second],
+      versements: [
+        versement("v1", "c-1", "2025-01", 100_000),
+        versement("v2", "c-2", "2025-01", 100_000),
+      ],
+      tauxCabinet: (id) => (id === "c-1" ? 0.03 : 0.1),
+    });
+    // 100 000 x 3 % x 10 % + 100 000 x 10 % x 10 % = 300 + 1 000
+    expect(result.commissionAcquisitionTotale).toBeCloseTo(1_300);
+  });
+
+  it("a different plan changes base fixe, bonus and eligibility window", () => {
+    const result = calc({
+      ...base,
+      periode: "2025-03",
+      versements: [versement("v", "c-1", "2025-03", 100_000)],
+      plan: {
+        baseFixe: 20_000,
+        tauxPerformance: 0.1,
+        tauxRetrocession: 0.2,
+        dureeMois: 2,
+      },
+    });
+    // Age 3 > 2 months: out of scope -> only the new base fixe.
+    expect(result.contrats[0]?.eligible).toBe(false);
+    expect(result.total).toBe(20_000);
+  });
+});
+
 describe("calculerRemuneration — FIGEE product (Retraite simple)", () => {
   const contrat: ContratInput = {
     id: "c-2",
@@ -142,26 +222,23 @@ describe("calculerRemuneration — FIGEE product (Retraite simple)", () => {
     cotisationReference: 20_000,
   };
 
-  it("month 1: frozen basis = subscription + reference contribution", () => {
-    const result = calculerRemuneration({
+  const run = (periode: string, versements: VersementInput[], c = contrat) =>
+    calc({
       commercialId: COMMERCIAL,
-      periode: "2025-05",
-      contrats: [contrat],
-      versements: [versement("v1", "c-2", "2025-05", 20_000)],
+      periode,
+      contrats: [c],
+      versements,
       produits: [RETRAITE_SIMPLE],
     });
+
+  it("month 1: frozen basis = subscription + reference contribution", () => {
+    const result = run("2025-05", [versement("v1", "c-2", "2025-05", 20_000)]);
     expect(result.contrats[0]?.assiette).toBe(20_000);
     expect(result.commissionAcquisitionTotale).toBeCloseTo(60);
   });
 
   it("month 2: basis stays frozen even if the actual payment differs", () => {
-    const result = calculerRemuneration({
-      commercialId: COMMERCIAL,
-      periode: "2025-06",
-      contrats: [contrat],
-      versements: [versement("v2", "c-2", "2025-06", 99_999)],
-      produits: [RETRAITE_SIMPLE],
-    });
+    const result = run("2025-06", [versement("v2", "c-2", "2025-06", 99_999)]);
     expect(result.contrats[0]?.assiette).toBe(20_000);
     expect(result.commissionAcquisitionTotale).toBeCloseTo(60);
     // Production still reflects what was actually received.
@@ -169,13 +246,7 @@ describe("calculerRemuneration — FIGEE product (Retraite simple)", () => {
   });
 
   it("month 2 with no payment at all: commission still computed, production is 0", () => {
-    const result = calculerRemuneration({
-      commercialId: COMMERCIAL,
-      periode: "2025-06",
-      contrats: [contrat],
-      versements: [],
-      produits: [RETRAITE_SIMPLE],
-    });
+    const result = run("2025-06", []);
     expect(result.contrats[0]?.assiette).toBe(20_000);
     expect(result.commissionAcquisitionTotale).toBeCloseTo(60);
     expect(result.production).toBe(0);
@@ -184,14 +255,7 @@ describe("calculerRemuneration — FIGEE product (Retraite simple)", () => {
   });
 
   it("month 1 with a subscription: basis includes the subscription", () => {
-    const withSub: ContratInput = { ...contrat, souscriptionMontant: 30_000 };
-    const result = calculerRemuneration({
-      commercialId: COMMERCIAL,
-      periode: "2025-05",
-      contrats: [withSub],
-      versements: [],
-      produits: [RETRAITE_SIMPLE],
-    });
+    const result = run("2025-05", [], { ...contrat, souscriptionMontant: 30_000 });
     expect(result.contrats[0]?.assiette).toBe(50_000);
     expect(result.commissionAcquisitionTotale).toBeCloseTo(150);
   });
@@ -213,7 +277,7 @@ describe("calculerRemuneration — multiple contracts", () => {
       dateSignature: "2025-01-10",
     };
 
-    const result = calculerRemuneration({
+    const result = calc({
       commercialId: COMMERCIAL,
       periode: "2025-01",
       contrats: [ancien, nouveau],
@@ -237,7 +301,7 @@ describe("calculerRemuneration — multiple contracts", () => {
 
   it("throws a clear error when the product is unknown", () => {
     expect(() =>
-      calculerRemuneration({
+      calc({
         commercialId: COMMERCIAL,
         periode: "2025-01",
         contrats: [
@@ -259,7 +323,7 @@ describe("calculerRemuneration — multiple contracts", () => {
 
 describe("calculerRemuneration — base fixe always guaranteed", () => {
   it("returns the base fixe with no contract and no payment", () => {
-    const result = calculerRemuneration({
+    const result = calc({
       commercialId: COMMERCIAL,
       periode: "2025-01",
       contrats: [],

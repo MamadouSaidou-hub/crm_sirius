@@ -4,6 +4,7 @@ import {
   computeProfitability,
   type ProfitabilityInput,
 } from "@/lib/payroll/profitability";
+import { PLAN_INITIAL, TAUX_CABINET_NSIA_VIE } from "@/lib/payroll/config";
 
 const INPUT: ProfitabilityInput = {
   commercialIds: ["u-1", "u-2"],
@@ -25,6 +26,10 @@ const INPUT: ProfitabilityInput = {
     { id: "v2", contratId: "c-1", periode: "2025-01", montant: 50_000, estSouscription: false },
     { id: "v3", contratId: "c-1", periode: "2025-04", montant: 50_000, estSouscription: false },
   ],
+  ratesFor: () => ({
+    plan: PLAN_INITIAL,
+    tauxCabinet: () => TAUX_CABINET_NSIA_VIE,
+  }),
 };
 
 describe("computeProfitability", () => {
@@ -63,6 +68,19 @@ describe("computeProfitability", () => {
     expect(vide.encaisse).toBe(0);
     expect(vide.commissionCabinet).toBe(0);
     expect(vide.net).toBe(-30_000);
+  });
+
+  it("uses the rate in force in each period (a renegotiated rate only applies from its month)", () => {
+    const renegotiated: ProfitabilityInput = {
+      ...INPUT,
+      ratesFor: (periode) => ({
+        plan: PLAN_INITIAL,
+        tauxCabinet: () => (periode >= "2025-04" ? 0.05 : 0.03),
+      }),
+    };
+    const [m1, , , m4] = computeProfitability(renegotiated, ["2025-01", "2025-02", "2025-03", "2025-04"]);
+    expect(m1.commissionCabinet).toBeCloseTo(4_500); // unchanged: 3 %
+    expect(m4.commissionCabinet).toBeCloseTo(2_500); // 5 % of 50 000
   });
 });
 
