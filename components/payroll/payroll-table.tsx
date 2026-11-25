@@ -40,9 +40,7 @@ export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
             <TableHead className="text-right">Production</TableHead>
             <TableHead className="text-right">Objectif</TableHead>
             <TableHead className="text-right">Base fixe</TableHead>
-            <TableHead className="text-right">
-              Prime ({formatRate(plan.tauxPerformance)})
-            </TableHead>
+            <TableHead className="text-right">Prime</TableHead>
             <TableHead className="text-right">Commissions</TableHead>
             <TableHead className="text-right">Total</TableHead>
           </TableRow>
