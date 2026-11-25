@@ -29,6 +29,7 @@ const INPUT: ProfitabilityInput = {
   ratesFor: () => ({
     plan: PLAN_INITIAL,
     tauxCabinet: () => TAUX_CABINET_NSIA_VIE,
+    tauxRetrocession: () => PLAN_INITIAL.tauxRetrocession,
   }),
 };
 
@@ -76,6 +77,7 @@ describe("computeProfitability", () => {
       ratesFor: (periode) => ({
         plan: PLAN_INITIAL,
         tauxCabinet: () => (periode >= "2025-04" ? 0.05 : 0.03),
+        tauxRetrocession: () => PLAN_INITIAL.tauxRetrocession,
       }),
     };
     const [m1, , , m4] = computeProfitability(renegotiated, ["2025-01", "2025-02", "2025-03", "2025-04"]);
@@ -94,5 +96,45 @@ describe("computeCommercialProfitability", () => {
     expect(u1?.net).toBeCloseTo(4_500 - 24_450);
     expect(u2?.commissionCabinet).toBe(0);
     expect(u2?.net).toBe(-15_000);
+  });
+});
+
+describe("contract duration", () => {
+  it("earns no commission past the contract's last month", () => {
+    const shortContract: ProfitabilityInput = {
+      ...INPUT,
+      contrats: [{ ...INPUT.contrats[0], dureeContratMois: 3 }],
+    };
+    const [m3, m4] = computeProfitability(shortContract, ["2025-03", "2025-04"]);
+    // Month 4 payment (50 000) is past the 3-month contract: no commission.
+    expect(m4.encaisse).toBe(50_000);
+    expect(m4.commissionCabinet).toBe(0);
+    expect(m3.commissionCabinet).toBe(0); // no payment in month 3 here
+  });
+
+  it("keeps earning for the whole duration of a long contract", () => {
+    const longContract: ProfitabilityInput = {
+      ...INPUT,
+      contrats: [{ ...INPUT.contrats[0], dureeContratMois: 120 }],
+    };
+    const [, m4] = computeProfitability(longContract, ["2025-03", "2025-04"]);
+    expect(m4.commissionCabinet).toBeCloseTo(1_500);
+  });
+});
+
+describe("per-product retrocession", () => {
+  it("a product-specific retrocession changes the cost of the commercial", () => {
+    const overridden: ProfitabilityInput = {
+      ...INPUT,
+      ratesFor: () => ({
+        plan: PLAN_INITIAL,
+        tauxCabinet: () => 0.1,
+        tauxRetrocession: () => 0.2,
+      }),
+    };
+    const [m1] = computeProfitability(overridden, ["2025-01"]);
+    // acquisition = 150 000 x 10 % x 20 % = 3 000
+    expect(m1.commissionAcquisition).toBeCloseTo(3_000);
+    expect(m1.commissionCabinet).toBeCloseTo(15_000);
   });
 });

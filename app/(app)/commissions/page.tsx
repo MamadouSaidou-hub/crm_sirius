@@ -6,6 +6,7 @@ import { useMockUser } from "@/lib/mock-auth";
 import type { Insurer } from "@/lib/types";
 import { PRODUCT_LABELS } from "@/lib/constants";
 import { fetchInsurers } from "@/lib/data/insurers";
+import { fetchPayrollProducts, type PayrollProduct } from "@/lib/data/payroll";
 import {
   fetchCommissionAgreements,
   fetchRemunerationPlans,
@@ -26,6 +27,10 @@ import {
   BASE_LABELS,
 } from "@/components/commissions/agreement-dialog";
 import { PlanDialog } from "@/components/commissions/plan-dialog";
+import {
+  ProductDialog,
+  SEGMENT_LABELS,
+} from "@/components/commissions/product-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -76,6 +81,7 @@ export default function CommissionsPage() {
   const [insurers, setInsurers] = useState<Insurer[]>([]);
   const [agreements, setAgreements] = useState<CommissionAgreement[] | null>(null);
   const [plans, setPlans] = useState<RemunerationPlanEntry[]>([]);
+  const [products, setProducts] = useState<PayrollProduct[]>([]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -84,12 +90,14 @@ export default function CommissionsPage() {
       fetchInsurers(),
       fetchCommissionAgreements(),
       fetchRemunerationPlans(),
+      fetchPayrollProducts(),
     ])
-      .then(([i, a, p]) => {
+      .then(([i, a, p, prods]) => {
         if (!active) return;
         setInsurers(i);
         setAgreements(a);
         setPlans(p);
+        setProducts(prods);
       })
       .catch(() => {
         if (active) setAgreements([]);
@@ -104,11 +112,16 @@ export default function CommissionsPage() {
     [insurers],
   );
 
+  const productLabel = useMemo(
+    () => new Map(products.map((p) => [p.id, p.label])),
+    [products],
+  );
+
   const agreementStatus = useMemo(
     () =>
       entryStatuses(
         agreements ?? [],
-        (a) => `${a.insurerId}/${a.productType ?? "*"}`,
+        (a) => `${a.insurerId}/${a.productId ?? a.productType ?? "*"}`,
         today(),
       ),
     [agreements],
@@ -146,6 +159,7 @@ export default function CommissionsPage() {
           <CardTitle>Commission du cabinet par compagnie</CardTitle>
           <AgreementDialog
             insurers={insurers}
+            products={products}
             userId={user.id}
             onCreated={refresh}
           />
@@ -157,6 +171,7 @@ export default function CommissionsPage() {
                 <TableHead>Compagnie</TableHead>
                 <TableHead>Produit</TableHead>
                 <TableHead className="text-right">Taux</TableHead>
+                <TableHead className="text-right">Rétrocession</TableHead>
                 <TableHead>Calculé sur</TableHead>
                 <TableHead>En vigueur dès</TableHead>
                 <TableHead>Statut</TableHead>
@@ -173,10 +188,19 @@ export default function CommissionsPage() {
                     {insurerName.get(a.insurerId) ?? a.insurerId}
                   </TableCell>
                   <TableCell>
-                    {a.productType ? PRODUCT_LABELS[a.productType] : "Tous"}
+                    {a.productId
+                      ? (productLabel.get(a.productId) ?? "Produit")
+                      : a.productType
+                        ? `Ligne ${PRODUCT_LABELS[a.productType]}`
+                        : "Toute la compagnie"}
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatRate(a.rate)}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {a.retrocessionRate === null
+                      ? "Barème"
+                      : formatRate(a.retrocessionRate)}
                   </TableCell>
                   <TableCell>{BASE_LABELS[a.base]}</TableCell>
                   <TableCell>{fullDate(`${a.effectiveFrom}T12:00:00`)}</TableCell>
@@ -185,6 +209,43 @@ export default function CommissionsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {a.note ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Catalogue des produits</CardTitle>
+          <ProductDialog insurers={insurers} onCreated={refresh} />
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produit</TableHead>
+                <TableHead>Compagnie</TableHead>
+                <TableHead>Segment</TableHead>
+                <TableHead>Ligne</TableHead>
+                <TableHead>Assiette</TableHead>
+                <TableHead>Cotisation</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.label}</TableCell>
+                  <TableCell>{insurerName.get(p.insurerId) ?? p.insurerId}</TableCell>
+                  <TableCell>{SEGMENT_LABELS[p.segment]}</TableCell>
+                  <TableCell>{PRODUCT_LABELS[p.productType]}</TableCell>
+                  <TableCell>
+                    {p.assietteType === "VARIABLE" ? "Variable" : "Figée"}
+                  </TableCell>
+                  <TableCell>
+                    {p.frequenceCotisation === "mensuelle" ? "Mensuelle" : "Annuelle"}
                   </TableCell>
                 </TableRow>
               ))}

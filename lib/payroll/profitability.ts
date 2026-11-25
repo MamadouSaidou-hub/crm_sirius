@@ -12,6 +12,7 @@
  */
 
 import {
+  ageContrat,
   calculerRemuneration,
   type ContratInput,
   type ProduitInput,
@@ -56,6 +57,23 @@ export interface CommercialProfitability {
   net: number;
 }
 
+/**
+ * Cabinet commission on a payment: the insurer only commissions the cabinet
+ * for the contract's duration, so nothing is earned past its last month.
+ */
+function commissionCabinetContrat(
+  contrat: ContratInput,
+  periode: string,
+  montant: number,
+  tauxCabinet: (contratId: string) => number,
+): number {
+  const duree = contrat.dureeContratMois;
+  if (duree !== undefined && ageContrat(periode, contrat.dateSignature) > duree) {
+    return 0;
+  }
+  return montant * tauxCabinet(contrat.id);
+}
+
 /** Sum of a contract's payments received in `periode`. */
 function encaisseContrat(
   periode: string,
@@ -76,7 +94,7 @@ export function computeProfitability(
   const contratsEquipe = contrats.filter((c) => ids.has(c.commercialId));
 
   return periodes.map((periode) => {
-    const { plan, tauxCabinet } = input.ratesFor(periode);
+    const { plan, planOf, tauxCabinet, tauxRetrocession } = input.ratesFor(periode);
     const lignes = commercialIds.map((commercialId) =>
       calculerRemuneration({
         commercialId,
@@ -85,7 +103,9 @@ export function computeProfitability(
         versements,
         produits,
         plan,
+        planOf,
         tauxCabinet,
+        tauxRetrocession,
       }),
     );
     const eligibles = new Set(
@@ -100,7 +120,7 @@ export function computeProfitability(
     for (const contrat of contratsEquipe) {
       const montant = encaisseContrat(periode, contrat.id, versements);
       if (montant === 0) continue;
-      const commission = montant * tauxCabinet(contrat.id);
+      const commission = commissionCabinetContrat(contrat, periode, montant, tauxCabinet);
       encaisse += montant;
       if (eligibles.has(contrat.id)) commissionPerimetre += commission;
       else commissionHorsPerimetre += commission;
@@ -133,7 +153,7 @@ export function computeCommercialProfitability(
   periode: string,
 ): CommercialProfitability[] {
   const { commercialIds, contrats, versements, produits } = input;
-  const { plan, tauxCabinet } = input.ratesFor(periode);
+  const { plan, planOf, tauxCabinet, tauxRetrocession } = input.ratesFor(periode);
 
   return commercialIds.map((commercialId) => {
     const siens = contrats.filter((c) => c.commercialId === commercialId);
@@ -144,7 +164,9 @@ export function computeCommercialProfitability(
       versements,
       produits,
       plan,
+      planOf,
       tauxCabinet,
+      tauxRetrocession,
     }).total;
 
     let encaisse = 0;
@@ -152,7 +174,7 @@ export function computeCommercialProfitability(
     for (const contrat of siens) {
       const montant = encaisseContrat(periode, contrat.id, versements);
       encaisse += montant;
-      commissionCabinet += montant * tauxCabinet(contrat.id);
+      commissionCabinet += commissionCabinetContrat(contrat, periode, montant, tauxCabinet);
     }
 
     return {

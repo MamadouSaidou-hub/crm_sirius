@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Insurer, ProductType } from "@/lib/types";
 import { PRODUCT_LABELS } from "@/lib/constants";
 import { createCommissionAgreement } from "@/lib/data/commissions";
+import type { PayrollProduct } from "@/lib/data/payroll";
 import type { CommissionBase } from "@/lib/payroll/rates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const ALL_PRODUCTS = "all";
+/** Scope select values: "all", "line:<productType>" or "product:<uuid>". */
+const SCOPE_ALL = "all";
 
 export const BASE_LABELS: Record<CommissionBase, string> = {
   ttc: "Taxes comprises (TTC)",
@@ -35,12 +37,15 @@ export const BASE_LABELS: Record<CommissionBase, string> = {
   prime_nette: "Prime nette",
 };
 
+const percent = z
+  .number({ invalid_type_error: "Taux invalide" })
+  .min(0, "Un taux doit être entre 0 et 100 %")
+  .max(100, "Un taux doit être entre 0 et 100 %");
+
 const schema = z.object({
   insurerId: z.string().min(1, "Compagnie requise"),
-  ratePercent: z
-    .number({ invalid_type_error: "Taux invalide" })
-    .min(0, "Le taux doit être entre 0 et 100 %")
-    .max(100, "Le taux doit être entre 0 et 100 %"),
+  ratePercent: percent,
+  retrocessionPercent: percent.nullable(),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"),
 });
 
@@ -52,30 +57,40 @@ export function firstOfCurrentMonth(): string {
 
 interface AgreementDialogProps {
   insurers: Insurer[];
+  products: PayrollProduct[];
   userId: string;
   onCreated: () => void;
 }
 
 export function AgreementDialog({
   insurers,
+  products,
   userId,
   onCreated,
 }: AgreementDialogProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [insurerId, setInsurerId] = useState("");
-  const [product, setProduct] = useState<string>(ALL_PRODUCTS);
+  const [scope, setScope] = useState<string>(SCOPE_ALL);
   const [ratePercent, setRatePercent] = useState("");
+  const [retrocession, setRetrocession] = useState("");
   const [base, setBase] = useState<CommissionBase>("ttc");
   const [effectiveFrom, setEffectiveFrom] = useState(firstOfCurrentMonth());
   const [note, setNote] = useState("");
 
   const insurer = insurers.find((i) => i.id === insurerId);
+  const insurerProducts = products.filter((p) => p.insurerId === insurerId);
+
+  const onInsurerChange = (id: string) => {
+    setInsurerId(id);
+    setScope(SCOPE_ALL);
+  };
 
   const handleSubmit = async () => {
     const parsed = schema.safeParse({
       insurerId,
       ratePercent: ratePercent === "" ? Number.NaN : Number(ratePercent),
+      retrocessionPercent: retrocession === "" ? null : Number(retrocession),
       effectiveFrom,
     });
     if (!parsed.success) {
@@ -90,21 +105,29 @@ export function AgreementDialog({
     try {
       await createCommissionAgreement({
         insurerId: parsed.data.insurerId,
-        productType: product === ALL_PRODUCTS ? null : (product as ProductType),
+        productId: scope.startsWith("product:") ? scope.slice(8) : null,
+        productType: scope.startsWith("line:")
+          ? (scope.slice(5) as ProductType)
+          : null,
         rate: parsed.data.ratePercent / 100,
+        retrocessionRate:
+          parsed.data.retrocessionPercent === null
+            ? null
+            : parsed.data.retrocessionPercent / 100,
         base,
         effectiveFrom: parsed.data.effectiveFrom,
         note: note.trim() || undefined,
         createdBy: userId,
       });
-      toast.success("Convention enregistrée");
+      toast.success("Taux enregistré");
       setOpen(false);
       setRatePercent("");
+      setRetrocession("");
       setNote("");
       onCreated();
     } catch {
       toast.error(
-        "Enregistrement impossible : cette convention existe déjà à cette date, ou vous n'avez pas les droits.",
+        "Enregistrement impossible : un taux existe déjà pour cette portée à cette date, ou vous n'avez pas les droits.",
       );
     } finally {
       setSaving(false);
@@ -126,7 +149,7 @@ export function AgreementDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Compagnie *</Label>
-            <Select value={insurerId} onValueChange={setInsurerId}>
+            <Select value={insurerId} onValueChange={onInsurerChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Choisir une compagnie" />
               </SelectTrigger>
@@ -140,26 +163,36 @@ export function AgreementDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Produit</Label>
-            <Select value={product} onValueChange={setProduct}>
+            <Label>S&apos;applique à</Label>
+            <Select value={scope} onValueChange={setScope} disabled={!insurerId}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_PRODUCTS}>
-                  Tous les produits de la compagnie
+                <SelectItem value={SCOPE_ALL}>
+                  Toute la compagnie (taux par défaut)
                 </SelectItem>
                 {(insurer?.products ?? []).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {PRODUCT_LABELS[p]}
+                  <SelectItem key={p} value={`line:${p}`}>
+                    Toute la ligne {PRODUCT_LABELS[p]}
+                  </SelectItem>
+                ))}
+                {insurerProducts.map((p) => (
+                  <SelectItem key={p.id} value={`product:${p.id}`}>
+                    Produit : {p.label}
+                    {p.segment === "groupe" ? " (Groupe)" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Le taux d&apos;un produit précis l&apos;emporte sur celui de sa
+              ligne, qui l&apos;emporte sur celui de la compagnie.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="ag-rate">Taux (%) *</Label>
+              <Label htmlFor="ag-rate">Taux du cabinet (%) *</Label>
               <Input
                 id="ag-rate"
                 type="number"
@@ -168,6 +201,19 @@ export function AgreementDialog({
                 step="0.01"
                 value={ratePercent}
                 onChange={(e) => setRatePercent(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ag-retro">Rétrocession (%)</Label>
+              <Input
+                id="ag-retro"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                placeholder="Barème"
+                value={retrocession}
+                onChange={(e) => setRetrocession(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -180,33 +226,37 @@ export function AgreementDialog({
                 onChange={(e) => setEffectiveFrom(e.target.value)}
               />
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Calculé sur</Label>
-            <Select value={base} onValueChange={(v) => setBase(v as CommissionBase)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(BASE_LABELS) as CommissionBase[]).map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {BASE_LABELS[b]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-1.5">
+              <Label>Calculé sur</Label>
+              <Select
+                value={base}
+                onValueChange={(v) => setBase(v as CommissionBase)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(BASE_LABELS) as CommissionBase[]).map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {BASE_LABELS[b]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ag-note">Note</Label>
             <Input
               id="ag-note"
               value={note}
-              placeholder="Ex. renégociation 2026"
+              placeholder="Ex. barème NSIA : 15 % puis 5 %"
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Le nouveau taux s&apos;applique à partir de cette date. Les mois
+            Rétrocession vide = part du barème de rémunération (10 % par
+            défaut). Le taux s&apos;applique dès sa date d&apos;effet : les mois
             précédents ne sont pas recalculés et l&apos;historique est conservé.
           </p>
         </div>

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { ProductType, User } from "@/lib/types";
+import type { ProductSegment, ProductType, User } from "@/lib/types";
 import { fetchAssignableCommercials } from "@/lib/data/profiles";
 import {
   fetchCommissionAgreements,
@@ -32,6 +32,8 @@ export interface PayrollProduct extends ProduitInput {
   label: string;
   /** Product line, used to pick the cabinet commission agreement. */
   productType: ProductType;
+  insurerId: string;
+  segment: ProductSegment;
   defaultSubscription: number;
   minPayment: number;
 }
@@ -78,6 +80,8 @@ interface ProductRow {
   code: string;
   label: string;
   product_type: ProductType;
+  insurer_id: string;
+  segment: ProductSegment;
   default_subscription: number;
   min_payment: number;
   assiette_type: ProduitInput["assietteType"];
@@ -112,7 +116,7 @@ export async function fetchPayrollProducts(): Promise<PayrollProduct[]> {
   const { data, error } = await createClient()
     .from("payroll_products")
     .select(
-      "id,code,label,product_type,default_subscription,min_payment,assiette_type,frequency",
+      "id,code,label,product_type,insurer_id,segment,default_subscription,min_payment,assiette_type,frequency",
     )
     .order("label");
   if (error) throw error;
@@ -121,6 +125,8 @@ export async function fetchPayrollProducts(): Promise<PayrollProduct[]> {
     code: r.code,
     label: r.label,
     productType: r.product_type,
+    insurerId: r.insurer_id,
+    segment: r.segment,
     defaultSubscription: Number(r.default_subscription),
     minPayment: Number(r.min_payment),
     assietteType: r.assiette_type,
@@ -147,6 +153,7 @@ export async function fetchPayrollContracts(): Promise<PayrollContract[]> {
     souscriptionMontant: Number(r.subscription_amount),
     cotisationReference: Number(r.reference_premium),
     durationMonths: r.duration_months,
+    dureeContratMois: r.duration_months,
     status: r.status,
   }));
 }
@@ -193,14 +200,28 @@ export function ratesResolverFor(raw: PayrollRaw) {
   const productById = new Map(raw.products.map((p) => [p.id, p]));
   const contractById = new Map(raw.contracts.map((c) => [c.id, c]));
 
-  return makeRatesResolver(raw.agreements, raw.plans, (contratId) => {
-    const contract = contractById.get(contratId);
-    const product = contract && productById.get(contract.produitId);
-    if (!contract || !product) {
-      throw new Error(`Contrat ou produit introuvable (${contratId}).`);
-    }
-    return { insurerId: contract.insurerId, productType: product.productType };
-  });
+  return makeRatesResolver(
+    raw.agreements,
+    raw.plans,
+    (contratId) => {
+      const contract = contractById.get(contratId);
+      const product = contract && productById.get(contract.produitId);
+      if (!contract || !product) {
+        throw new Error(`Contrat ou produit introuvable (${contratId}).`);
+      }
+      return {
+        insurerId: contract.insurerId,
+        productId: product.id,
+        productType: product.productType,
+      };
+    },
+    // The remuneration plan is frozen at the contract's signature date.
+    (contratId) => {
+      const contract = contractById.get(contratId);
+      if (!contract) throw new Error(`Contrat introuvable (${contratId}).`);
+      return contract.dateSignature;
+    },
+  );
 }
 
 /** Runs the pure engine once per visible commercial for `period`. */
@@ -208,7 +229,8 @@ export function computePayrollLines(
   raw: PayrollRaw,
   period: string,
 ): PayrollLine[] {
-  const { plan, tauxCabinet } = ratesResolverFor(raw)(period);
+  const { plan, planOf, tauxCabinet, tauxRetrocession } =
+    ratesResolverFor(raw)(period);
   return raw.commercials.map((commercial) => ({
     ...calculerRemuneration({
       commercialId: commercial.id,
@@ -217,7 +239,9 @@ export function computePayrollLines(
       versements: raw.payments,
       produits: raw.products,
       plan,
+      planOf,
       tauxCabinet,
+      tauxRetrocession,
     }),
     commercial,
   }));
@@ -306,6 +330,45 @@ export async function createPayrollPayment(
     amount,
     is_subscription: false,
     created_by: createdBy,
+  });
+  if (error) throw error;
+}
+
+export interface NewPayrollProduct {
+  insurerId: string;
+  label: string;
+  productType: ProductType;
+  segment: ProductSegment;
+  assietteType: ProduitInput["assietteType"];
+  frequence: ProduitInput["frequenceCotisation"];
+  defaultSubscription: number;
+  minPayment: number;
+}
+
+/** Stable unique code from the label, e.g. "NSIA Études" -> "NSIA_ETUDES". */
+function productCode(label: string): string {
+  return label
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+/** Adds a product to the catalogue (admin only — enforced by RLS). */
+export async function createPayrollProduct(
+  input: NewPayrollProduct,
+): Promise<void> {
+  const { error } = await createClient().from("payroll_products").insert({
+    code: `${productCode(input.label)}_${input.insurerId.replace("ins-", "").toUpperCase()}`,
+    label: input.label,
+    insurer_id: input.insurerId,
+    product_type: input.productType,
+    segment: input.segment,
+    assiette_type: input.assietteType,
+    frequency: input.frequence,
+    default_subscription: input.defaultSubscription,
+    min_payment: input.minPayment,
   });
   if (error) throw error;
 }

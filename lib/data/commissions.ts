@@ -11,7 +11,9 @@ import type {
 interface AgreementRow {
   id: string;
   insurer_id: string;
+  product_id: string | null;
   product_type: ProductType | null;
+  retrocession_rate: number | null;
   rate: number;
   base: CommissionBase;
   effective_from: string;
@@ -29,7 +31,7 @@ interface PlanRow {
 }
 
 const AGREEMENT_COLS =
-  "id,insurer_id,product_type,rate,base,effective_from,note";
+  "id,insurer_id,product_id,product_type,rate,retrocession_rate,base,effective_from,note";
 const PLAN_COLS =
   "id,base_fixe,performance_rate,retrocession_rate,duration_months,effective_from,note";
 
@@ -45,7 +47,9 @@ export async function fetchCommissionAgreements(): Promise<CommissionAgreement[]
   return ((data ?? []) as AgreementRow[]).map((r) => ({
     id: r.id,
     insurerId: r.insurer_id,
+    productId: r.product_id,
     productType: r.product_type,
+    retrocessionRate: r.retrocession_rate === null ? null : Number(r.retrocession_rate),
     rate: Number(r.rate),
     base: r.base,
     effectiveFrom: r.effective_from,
@@ -74,7 +78,10 @@ export async function fetchRemunerationPlans(): Promise<RemunerationPlanEntry[]>
 
 export interface NewCommissionAgreement {
   insurerId: string;
+  productId: string | null;
   productType: ProductType | null;
+  /** Share passed to the commercial; null = plan default. */
+  retrocessionRate: number | null;
   rate: number;
   base: CommissionBase;
   effectiveFrom: string;
@@ -87,7 +94,9 @@ export async function createCommissionAgreement(
 ): Promise<void> {
   const { error } = await createClient().from("commission_agreements").insert({
     insurer_id: input.insurerId,
+    product_id: input.productId,
     product_type: input.productType,
+    retrocession_rate: input.retrocessionRate,
     rate: input.rate,
     base: input.base,
     effective_from: input.effectiveFrom,

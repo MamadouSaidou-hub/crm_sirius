@@ -336,3 +336,41 @@ describe("calculerRemuneration — base fixe always guaranteed", () => {
     expect(result.total).toBe(BASE_FIXE);
   });
 });
+
+describe("plan frozen at signature", () => {
+  const OLD = PLAN_INITIAL; // 15 000 + 6 % + 10 %
+  const NEW = { baseFixe: 15_000, tauxPerformance: 0, tauxRetrocession: 0.2, dureeMois: 3 };
+  const contrat = (id: string, dateSignature: string): ContratInput => ({
+    id,
+    commercialId: COMMERCIAL,
+    produitId: LIBRE_RETRAITE.id,
+    dateSignature,
+    souscriptionMontant: 0,
+    cotisationReference: 0,
+  });
+  const contrats = [contrat("old", "2025-11-20"), contrat("new", "2025-12-05")];
+  const versements = [
+    versement("v1", "old", "2025-12", 100_000),
+    versement("v2", "new", "2025-12", 100_000),
+  ];
+
+  it("a contract keeps the plan in force when it was signed, whatever the month", () => {
+    const result = calc({
+      commercialId: COMMERCIAL,
+      periode: "2025-12",
+      contrats,
+      versements,
+      produits: [LIBRE_RETRAITE],
+      plan: NEW, // plan of the month (base fixe)
+      planOf: (id) => (id === "old" ? OLD : NEW),
+    });
+    const old = result.contrats.find((c) => c.contratId === "old");
+    const fresh = result.contrats.find((c) => c.contratId === "new");
+    // old: 100 000 x 3 % x 10 % = 300 ; new: 100 000 x 3 % x 20 % = 600
+    expect(old?.commissionAcquisition).toBeCloseTo(300);
+    expect(fresh?.commissionAcquisition).toBeCloseTo(600);
+    // bonus only on the old contract: 100 000 x 6 %
+    expect(result.primePerformance).toBeCloseTo(6_000);
+    expect(result.baseFixe).toBe(15_000);
+  });
+});

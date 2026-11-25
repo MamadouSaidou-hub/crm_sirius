@@ -39,6 +39,11 @@ export interface ContratInput {
   souscriptionMontant: number;
   /** Reference monthly contribution captured at signature (frozen basis for FIGEE). */
   cotisationReference: number;
+  /**
+   * Contract duration in months. The cabinet is only commissioned by the
+   * insurer for the contract's duration; unset = no limit.
+   */
+  dureeContratMois?: number;
 }
 
 export interface VersementInput {
@@ -60,6 +65,8 @@ export interface ContratDetail {
   tauxCommission: number;
   commissionAcquisition: number;
   production: number;
+  /** Bonus on this contract's production, at the rate frozen at its signature. */
+  primePerformance: number;
 }
 
 export interface RemunerationResult {
@@ -129,6 +136,17 @@ export interface CalculerRemunerationInput {
   plan: RemunerationPlan;
   /** Cabinet commission rate (0..1) applying to a contract in `periode`. */
   tauxCabinet: (contratId: string) => number;
+  /**
+   * Share of the cabinet commission passed to the commercial for a contract
+   * (the product's agreement may override the plan). Defaults to the plan's.
+   */
+  tauxRetrocession?: (contratId: string) => number;
+  /**
+   * Plan frozen at a contract's signature date: its duration, bonus rate and
+   * default retrocession follow the plan in force when it was signed. The base
+   * fixe still comes from `plan` (the month's). Defaults to `plan`.
+   */
+  planOf?: (contratId: string) => RemunerationPlan;
 }
 
 /**
@@ -143,20 +161,22 @@ export function calculerRemuneration(
 
   const contratsDetail: ContratDetail[] = contrats.map((contrat) => {
     const age = ageContrat(periode, contrat.dateSignature);
+    const contractPlan = input.planOf?.(contrat.id) ?? plan;
 
-    if (!estEligible(age, plan.dureeMois)) {
+    if (!estEligible(age, contractPlan.dureeMois)) {
       return {
         contratId: contrat.id,
         age,
         eligible: false,
         motifExclusion:
-          age > plan.dureeMois
-            ? `Sorti du périmètre (>${plan.dureeMois} mois)`
+          age > contractPlan.dureeMois
+            ? `Sorti du périmètre (>${contractPlan.dureeMois} mois)`
             : "Contrat pas encore signé sur cette période",
         assiette: 0,
         tauxCommission: 0,
         commissionAcquisition: 0,
         production: 0,
+        primePerformance: 0,
       };
     }
 
@@ -173,7 +193,9 @@ export function calculerRemuneration(
     }
 
     const assiette = calculerAssiette(produit, contrat, age, versementsDuMois);
-    const tauxCommission = input.tauxCabinet(contrat.id) * plan.tauxRetrocession;
+    const retrocession =
+      input.tauxRetrocession?.(contrat.id) ?? contractPlan.tauxRetrocession;
+    const tauxCommission = input.tauxCabinet(contrat.id) * retrocession;
 
     return {
       contratId: contrat.id,
@@ -184,11 +206,15 @@ export function calculerRemuneration(
       tauxCommission,
       commissionAcquisition: assiette * tauxCommission,
       production,
+      primePerformance: production * contractPlan.tauxPerformance,
     };
   });
 
   const production = contratsDetail.reduce((sum, c) => sum + c.production, 0);
-  const primePerformance = production * plan.tauxPerformance;
+  const primePerformance = contratsDetail.reduce(
+    (sum, c) => sum + c.primePerformance,
+    0,
+  );
   const commissionAcquisitionTotale = contratsDetail.reduce(
     (sum, c) => sum + c.commissionAcquisition,
     0,

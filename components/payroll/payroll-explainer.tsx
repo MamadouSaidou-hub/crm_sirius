@@ -43,7 +43,8 @@ export function PayrollExplainer({ plan, cabinetRates }: PayrollExplainerProps) 
 
           <div className="space-y-4 border-t border-border p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">
-              Rémunération du mois = base fixe + prime de performance +
+              Rémunération du mois = base fixe
+              {plan.tauxPerformance > 0 ? " + prime de performance" : ""} +
               commissions d&apos;acquisition
             </p>
 
@@ -53,11 +54,13 @@ export function PayrollExplainer({ plan, cabinetRates }: PayrollExplainerProps) 
                 {formatFCFA(plan.baseFixe)}, garantie chaque mois, même sans
                 production.
               </li>
-              <li>
-                <span className="text-foreground">Prime de performance :</span>{" "}
-                {formatRate(plan.tauxPerformance)} de la production du mois
-                (somme des versements des contrats encore dans le périmètre).
-              </li>
+              {plan.tauxPerformance > 0 && (
+                <li>
+                  <span className="text-foreground">Prime de performance :</span>{" "}
+                  {formatRate(plan.tauxPerformance)} de la production du mois
+                  (somme des versements des contrats encore dans le périmètre).
+                </li>
+              )}
               <li>
                 <span className="text-foreground">
                   Commission d&apos;acquisition :

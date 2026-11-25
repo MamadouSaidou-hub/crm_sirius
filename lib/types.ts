@@ -21,6 +21,9 @@ export interface User {
 
 export type ProductType = "auto" | "mrh" | "sante" | "vie" | "iard";
 
+/** Individual vs group insurance product. */
+export type ProductSegment = "individuel" | "groupe";
+
 export type Stage = "lead" | "qualified" | "quoted" | "won" | "lost";
 
 export const SENEGAL_CITIES = [

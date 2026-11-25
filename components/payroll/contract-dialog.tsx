@@ -62,14 +62,11 @@ export function ContractDialog({
   const [subscription, setSubscription] = useState("0");
   const [premium, setPremium] = useState("");
   const [duration, setDuration] = useState("120");
-  const [insurerId, setInsurerId] = useState("");
   const [insurers, setInsurers] = useState<Insurer[]>([]);
 
-  // Insurers selling the chosen product line (the cabinet rate depends on it).
-  const productType = products.find((p) => p.id === productId)?.productType;
-  const availableInsurers = insurers.filter(
-    (i) => i.active && (!productType || i.products.includes(productType)),
-  );
+  // A product belongs to one insurer: choosing the product fixes the insurer.
+  const insurerName = (id: string) =>
+    insurers.find((i) => i.id === id)?.shortName ?? "";
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +75,6 @@ export function ContractDialog({
 
   const onProductChange = (id: string) => {
     setProductId(id);
-    setInsurerId("");
     const product = products.find((p) => p.id === id);
     if (product) setSubscription(String(product.defaultSubscription));
   };
@@ -87,7 +83,7 @@ export function ContractDialog({
     const parsed = contractSchema.safeParse({
       commercialId,
       productId,
-      insurerId,
+      insurerId: products.find((p) => p.id === productId)?.insurerId ?? "",
       clientName,
       signatureDate,
       subscriptionAmount: Number(subscription),
@@ -148,30 +144,9 @@ export function ContractDialog({
               <SelectContent>
                 {products.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Compagnie *</Label>
-            <Select
-              value={insurerId}
-              onValueChange={setInsurerId}
-              disabled={!productId}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    productId ? "Choisir une compagnie" : "Choisir d'abord un produit"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {availableInsurers.map((i) => (
-                  <SelectItem key={i.id} value={i.id}>
-                    {i.name}
+                    {[insurerName(p.insurerId), p.label, p.segment === "groupe" ? "(Groupe)" : ""]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -19,7 +19,8 @@ CRM de courtage en assurance (Next.js 16, React 19, Supabase).
 Les clés (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, clé `service_role`)
 sont dans `.env.local` (non versionné) et dans les variables d'environnement Vercel.
 Les scripts SQL à exécuter dans le SQL Editor sont décrits dans [supabase/README.md](./supabase/README.md)
-(ordre : `01` à `05`, puis `06_payroll.sql` pour la paie des commerciaux).
+(ordre : `01` à `05`, puis `06_payroll.sql` pour la paie des commerciaux, `07_commission_agreements.sql`
+pour les taux datés et `08_product_catalog.sql` pour le catalogue de produits et les taux par produit).
 
 ## Tests
 

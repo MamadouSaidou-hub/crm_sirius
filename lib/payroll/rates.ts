@@ -11,13 +11,23 @@ import type { ProductType } from "@/lib/types";
 
 export type CommissionBase = "ttc" | "ht" | "prime_nette";
 
-/** Rate the cabinet gets from an insurer. `productType` null = all products. */
+/**
+ * Rate the cabinet gets from an insurer.
+ *
+ * Scope, from most to least specific:
+ *  - `productId` set: one precise product of the catalogue;
+ *  - `productType` set: a whole product line of the insurer;
+ *  - both null: everything sold by the insurer.
+ */
 export interface CommissionAgreement {
   id: string;
   insurerId: string;
+  productId: string | null;
   productType: ProductType | null;
   /** 0..1 */
   rate: number;
+  /** Share of the cabinet commission passed to the commercial; null = plan default. */
+  retrocessionRate: number | null;
   base: CommissionBase;
   /** 'YYYY-MM-DD' — valid from this date until a newer agreement of the same scope. */
   effectiveFrom: string;
@@ -30,7 +40,7 @@ export interface RemunerationPlan {
   baseFixe: number;
   /** Bonus rate on the month's eligible production, 0..1. */
   tauxPerformance: number;
-  /** Share of the cabinet commission passed on to the commercial, 0..1. */
+  /** Default share of the cabinet commission passed on to the commercial, 0..1. */
   tauxRetrocession: number;
   /** A contract remunerates its commercial for its first N months. */
   dureeMois: number;
@@ -42,15 +52,17 @@ export interface RemunerationPlanEntry extends RemunerationPlan {
   note?: string;
 }
 
+/** What identifies a contract when looking up its agreement. */
 export interface ContractScope {
   insurerId: string;
+  productId: string;
   productType: ProductType;
 }
 
 export class MissingAgreementError extends Error {
   constructor(scope: ContractScope, periode: string) {
     super(
-      `Aucune convention de commission pour ${scope.insurerId} / ${scope.productType} en ${periode}.`,
+      `Aucune convention de commission pour ${scope.insurerId} / ${scope.productType} (produit ${scope.productId}) en ${periode}.`,
     );
     this.name = "MissingAgreementError";
   }
@@ -68,10 +80,15 @@ export function debutPeriode(periode: string): string {
   return `${periode}-01`;
 }
 
+/** 3 = precise product, 2 = product line, 1 = whole insurer. */
+function specificity(agreement: CommissionAgreement): number {
+  if (agreement.productId !== null) return 3;
+  return agreement.productType !== null ? 2 : 1;
+}
+
 /**
  * The agreement applying to `scope` during `periode`: among the entries
- * already effective, a product-specific one beats an insurer-wide one, then
- * the most recent wins.
+ * already effective, the most specific scope wins, then the most recent.
  */
 export function findAgreement(
   agreements: CommissionAgreement[],
@@ -79,18 +96,16 @@ export function findAgreement(
   periode: string,
 ): CommissionAgreement | null {
   const date = debutPeriode(periode);
-  const candidates = agreements.filter(
-    (a) =>
-      a.insurerId === scope.insurerId &&
-      (a.productType === null || a.productType === scope.productType) &&
-      a.effectiveFrom <= date,
-  );
+  const candidates = agreements.filter((a) => {
+    if (a.insurerId !== scope.insurerId || a.effectiveFrom > date) return false;
+    if (a.productId !== null) return a.productId === scope.productId;
+    return a.productType === null || a.productType === scope.productType;
+  });
 
   candidates.sort((a, b) => {
-    const specificity =
-      Number(b.productType !== null) - Number(a.productType !== null);
-    return specificity !== 0
-      ? specificity
+    const bySpecificity = specificity(b) - specificity(a);
+    return bySpecificity !== 0
+      ? bySpecificity
       : b.effectiveFrom.localeCompare(a.effectiveFrom);
   });
   return candidates[0] ?? null;
@@ -128,9 +143,13 @@ export interface PeriodRates {
   plan: RemunerationPlan;
   /** Cabinet commission rate for a contract (by id) in that period. */
   tauxCabinet: (contratId: string) => number;
+  /** Share passed to the commercial for a contract: the agreement's, else the plan's. */
+  tauxRetrocession: (contratId: string) => number;
+  /** Plan frozen at the contract's signature date (= `plan` when unknown). */
+  planOf?: (contratId: string) => RemunerationPlan;
 }
 
-/** Looks up each contract's insurer / product line by contract id. */
+/** Looks up each contract's insurer / product by contract id. */
 export type ContractScopeLookup = (contratId: string) => ContractScope;
 
 /** Builds the per-period rates resolver from the raw tables. */
@@ -138,12 +157,28 @@ export function makeRatesResolver(
   agreements: CommissionAgreement[],
   plans: RemunerationPlanEntry[],
   scopeOf: ContractScopeLookup,
+  /** Signature date ('YYYY-MM-DD') of a contract; enables plans frozen at signature. */
+  signatureOf?: (contratId: string) => string,
 ): (periode: string) => PeriodRates {
-  return (periode) => ({
-    plan: resolvePlan(plans, periode),
-    tauxCabinet: (contratId) =>
-      resolveCabinetRate(agreements, scopeOf(contratId), periode),
-  });
+  return (periode) => {
+    const plan = resolvePlan(plans, periode);
+    const planOf = (contratId: string): RemunerationPlan =>
+      signatureOf ? resolvePlan(plans, signatureOf(contratId).slice(0, 7)) : plan;
+    const agreementOf = (contratId: string): CommissionAgreement => {
+      const scope = scopeOf(contratId);
+      const agreement = findAgreement(agreements, scope, periode);
+      if (!agreement) throw new MissingAgreementError(scope, periode);
+      return agreement;
+    };
+    return {
+      plan,
+      planOf,
+      tauxCabinet: (contratId) => agreementOf(contratId).rate,
+      tauxRetrocession: (contratId) =>
+        agreementOf(contratId).retrocessionRate ??
+        planOf(contratId).tauxRetrocession,
+    };
+  };
 }
 
 export type EntryStatus = "current" | "future" | "past";
