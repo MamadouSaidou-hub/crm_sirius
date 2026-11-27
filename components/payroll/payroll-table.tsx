@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText } from "lucide-react";
 import type {
   PayrollContract,
   PayrollLine,
@@ -13,7 +13,9 @@ import type { RemunerationPlan } from "@/lib/payroll/rates";
 import { formatRate } from "@/components/payroll/payroll-explainer";
 import { attainment } from "@/lib/data/performance";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { PayslipDialog } from "@/components/payroll/payslip-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -29,6 +31,8 @@ interface PayrollTableProps {
   contracts: PayrollContract[];
   policies: PayrollPolicy[];
   products: PayrollProduct[];
+  /** Displayed month, 'YYYY-MM' (titles the payslip). */
+  period: string;
   /** Plan in force for the displayed period. */
   plan: RemunerationPlan;
 }
@@ -83,9 +87,11 @@ export function PayrollTable({
   contracts,
   policies,
   products,
+  period,
   plan,
 }: PayrollTableProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [payslipLine, setPayslipLine] = useState<PayrollLine | null>(null);
   const contractById = new Map(contracts.map((c) => [c.id, c]));
   const policyById = new Map(policies.map((p) => [p.id, p]));
   const productById = new Map(products.map((p) => [p.id, p]));
@@ -170,6 +176,16 @@ export function PayrollTable({
                   {open && (
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableCell colSpan={columnCount} className="p-4">
+                        <div className="mb-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPayslipLine(line)}
+                          >
+                            <FileText className="h-4 w-4" />
+                            Bulletin de paie
+                          </Button>
+                        </div>
                         {line.contrats.length === 0 && line.polices.length === 0 ? (
                           <p className="text-sm text-muted-foreground">
                             Aucun contrat ni police ce mois — seule la base fixe
@@ -310,6 +326,14 @@ export function PayrollTable({
           </TableBody>
         </Table>
       </div>
+      <PayslipDialog
+        line={payslipLine}
+        period={period}
+        contracts={contracts}
+        policies={policies}
+        products={products}
+        onClose={() => setPayslipLine(null)}
+      />
     </div>
   );
 }

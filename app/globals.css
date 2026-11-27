@@ -120,3 +120,25 @@
     background: transparent;
   }
 }
+
+/* Payslip printing: only the payslip sheet is printed (see PayslipDialog). */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .payslip-print,
+  .payslip-print * {
+    visibility: visible !important;
+  }
+  .payslip-print {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
