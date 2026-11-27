@@ -49,6 +49,11 @@ export interface PolicyEvaluated {
   tauxCabinet: number;
   partAccessoires: number;
   accessoires: number;
+  /**
+   * What the policy counts for the monthly objective: the prime TTC (what the
+   * client pays), or the prime nette when no TTC was recorded.
+   */
+  production: number;
   /** What the cabinet earns on this policy. */
   commissionCabinet: number;
   retrocession: number;
@@ -112,6 +117,7 @@ export function evaluatePolicy(
     tauxCabinet: agreement.rate,
     partAccessoires: agreement.accessoryShare,
     accessoires: policy.accessoires,
+    production: policy.primeTtc > 0 ? policy.primeTtc : policy.primeNette,
     commissionCabinet,
     retrocession,
     commissionCommercial: commissionCabinet * retrocession,

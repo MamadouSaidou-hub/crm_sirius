@@ -210,3 +210,34 @@ describe("integration with payroll and profitability", () => {
     expect(dec.net).toBeCloseTo(cabinet - 30_000 - share);
   });
 });
+
+describe("production for the monthly objective", () => {
+  it("counts the prime TTC of a policy, or the prime nette when no TTC is recorded", () => {
+    const withTtc = evaluatePolicy(policy({ primeNette: 16_849, primeTtc: 22_973 }), AXA, AGREEMENTS, PLANS);
+    expect(withTtc.production).toBe(22_973);
+    const noTtc = evaluatePolicy(policy({ primeNette: 16_849 }), AXA, AGREEMENTS, PLANS);
+    expect(noTtc.production).toBe(16_849);
+  });
+
+  it("adds IARD policies to life payments in the commercial's production, without touching the bonus", () => {
+    const evaluated = [
+      evaluatePolicy(policy({ id: "a", primeNette: 40_000, primeTtc: 50_000 }), AXA, AGREEMENTS, PLANS),
+    ];
+    const result = calculerRemuneration({
+      commercialId: "u-1",
+      periode: "2026-12",
+      contrats: [
+        { id: "c1", commercialId: "u-1", produitId: "life", dateSignature: "2026-12-02", souscriptionMontant: 0, cotisationReference: 0 },
+      ],
+      versements: [{ id: "v1", contratId: "c1", periode: "2026-12", montant: 300_000, estSouscription: false }],
+      produits: [{ id: "life", assietteType: "VARIABLE", frequenceCotisation: "mensuelle" }],
+      plan: { baseFixe: 15_000, tauxPerformance: 0.06, tauxRetrocession: 0.1, dureeMois: 3 },
+      tauxCabinet: () => 0.03,
+      polices: evaluated,
+    });
+    expect(result.production).toBe(350_000);
+    expect(result.productionPolices).toBe(50_000);
+    // Bonus only on the life production (300 000 x 6 %).
+    expect(result.primePerformance).toBeCloseTo(18_000);
+  });
+});

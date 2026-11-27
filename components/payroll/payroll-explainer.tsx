@@ -77,6 +77,11 @@ export function PayrollExplainer({ plan, cabinetRates }: PayrollExplainerProps) 
                 le mois de la date d&apos;effet de la police (pas de règle des{" "}
                 {plan.dureeMois} mois).
               </li>
+              <li>
+                <span className="text-foreground">Objectif mensuel :</span> la
+                production compte les versements vie et les primes TTC des
+                polices IARD du mois, ensemble.
+              </li>
             </ul>
 
             <div className="rounded-md border border-border bg-muted/30 p-3">

@@ -74,7 +74,10 @@ export interface RemunerationResult {
   commercialId: string;
   periode: string;
   baseFixe: number;
+  /** Life payments + IARD policies (prime TTC) of the month: what the objective measures. */
   production: number;
+  /** Part of `production` coming from IARD policies. */
+  productionPolices: number;
   primePerformance: number;
   commissionAcquisitionTotale: number;
   /** Commercial's share of the IARD policies taking effect this month. */
@@ -237,12 +240,16 @@ export function calculerRemuneration(
     (sum, p) => sum + p.commissionCommercial,
     0,
   );
+  const productionPolices = polices.reduce((sum, p) => sum + p.production, 0);
 
   return {
     commercialId,
     periode,
     baseFixe: plan.baseFixe,
-    production,
+    // The monthly objective counts life payments AND IARD policies. The
+    // performance bonus stays on life contracts only (see primePerformance).
+    production: production + productionPolices,
+    productionPolices,
     primePerformance,
     commissionAcquisitionTotale,
     commissionPolices,
