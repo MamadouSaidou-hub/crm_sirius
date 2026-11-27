@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { User } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
 import { canManageTeam } from "@/lib/access";
+import { ROLE_ORDER } from "@/lib/permissions";
 import {
   fetchUsers,
   setUserActive,
@@ -16,12 +17,6 @@ import { Forbidden } from "@/components/shared/forbidden";
 import { Button } from "@/components/ui/button";
 import { UsersTable } from "@/components/users/users-table";
 import { UserFormDialog } from "@/components/users/user-form-dialog";
-
-const ORDER: Record<User["role"], number> = {
-  admin: 0,
-  manager: 1,
-  commercial: 2,
-};
 
 export default function UsersPage() {
   const { user } = useMockUser();
@@ -52,7 +47,8 @@ export default function UsersPage() {
   const sorted = (list ?? [])
     .slice()
     .sort(
-      (a, b) => ORDER[a.role] - ORDER[b.role] || a.name.localeCompare(b.name),
+      (a, b) =>
+        ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name),
     );
 
   const onToggleActive = (id: string) => {
@@ -87,7 +83,7 @@ export default function UsersPage() {
       {list === null ? (
         <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Chargement de l'équipe…
+          Chargement de l&apos;équipe…
         </div>
       ) : (
         <UsersTable

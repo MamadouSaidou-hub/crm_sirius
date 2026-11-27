@@ -22,10 +22,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { AppearanceCard } from "@/components/settings/appearance-card";
+import { isAdminLevel } from "@/lib/permissions";
 
 export default function SettingsPage() {
   const { user } = useMockUser();
-  const canEdit = user.role === "admin";
+  const canEdit = isAdminLevel(user.role);
   const { online, pending, syncing, lastSyncAt, syncNow } = useSync();
   const install = usePwaInstall();
 

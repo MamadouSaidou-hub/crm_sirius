@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMockUser } from "@/lib/mock-auth";
+import { isAdminLevel } from "@/lib/permissions";
 import { CURRENT_PERIOD } from "@/lib/data/performance";
 import { PageHeader } from "@/components/shared/page-header";
 import { PeriodSelector } from "@/components/performance/period-selector";
@@ -27,8 +28,14 @@ export default function PerformancePage() {
       {user.role === "manager" && (
         <ManagerPerformance user={user} period={period} />
       )}
-      {user.role === "admin" && (
+      {isAdminLevel(user.role) && (
         <AdminPerformance user={user} period={period} />
+      )}
+      {user.role === "gestionnaire" && (
+        <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">
+          Le suivi de l&apos;objectif de production de chaque commercial se
+          trouve dans la page Paie.
+        </p>
       )}
     </div>
   );

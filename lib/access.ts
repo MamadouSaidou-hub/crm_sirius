@@ -1,5 +1,10 @@
 import type { Prospect, Task, User } from "@/lib/types";
 import { users } from "@/lib/mock-data";
+import {
+  canExport as roleCanExport,
+  canManageTeam as roleCanManageTeam,
+  isAdminLevel,
+} from "@/lib/permissions";
 
 /**
  * Role-based scoping helpers. All pure functions of the current user so that
@@ -8,7 +13,7 @@ import { users } from "@/lib/mock-data";
 
 /** Ids of users whose data the current user is allowed to see. */
 export function visibleUserIds(current: User): Set<string> {
-  if (current.role === "admin") {
+  if (isAdminLevel(current.role)) {
     return new Set(users.map((u) => u.id));
   }
   if (current.role === "manager") {
@@ -43,9 +48,9 @@ export function assignableCommercials(current: User): User[] {
 }
 
 export function canManageTeam(current: User): boolean {
-  return current.role === "admin" || current.role === "manager";
+  return roleCanManageTeam(current.role);
 }
 
 export function canExport(current: User): boolean {
-  return current.role === "admin" || current.role === "manager";
+  return roleCanExport(current.role);
 }

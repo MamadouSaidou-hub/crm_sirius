@@ -5,6 +5,7 @@ import { Building2, Loader2, Plug, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { Insurer } from "@/lib/types";
 import { useMockUser } from "@/lib/mock-auth";
+import { isAdminLevel } from "@/lib/permissions";
 import { fetchInsurers, setInsurerActive } from "@/lib/data/insurers";
 import { PageHeader } from "@/components/shared/page-header";
 import { Forbidden } from "@/components/shared/forbidden";
@@ -19,7 +20,7 @@ export default function PartnersPage() {
   const [list, setList] = useState<Insurer[] | null>(null);
   const [linksTarget, setLinksTarget] = useState<Insurer | null>(null);
 
-  const allowed = user.role === "admin";
+  const allowed = isAdminLevel(user.role);
 
   useEffect(() => {
     if (!allowed) return;
@@ -38,7 +39,7 @@ export default function PartnersPage() {
     );
   }
 
-  const canEdit = user.role === "admin";
+  const canEdit = isAdminLevel(user.role);
   const insurers = list ?? [];
   const apiCount = insurers.filter((i) => i.integrationMode === "api").length;
   const portalCount = insurers.length - apiCount;

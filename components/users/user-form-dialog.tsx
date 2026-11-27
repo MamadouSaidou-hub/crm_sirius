@@ -7,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { User, UserRole } from "@/lib/types";
 import { ROLE_LABELS } from "@/lib/constants";
+import { MIN_PASSWORD_LENGTH, creatableRoles } from "@/lib/permissions";
 import { useMockUser } from "@/lib/mock-auth";
 import { fetchManagers } from "@/lib/data/profiles";
 import { createUser, updateUserProfile } from "@/lib/data/users";
@@ -30,13 +31,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-const ROLES: UserRole[] = ["admin", "manager", "commercial"];
 
 const schema = z
   .object({
     name: z.string().min(2, "Nom requis."),
     email: z.string().email("Email invalide."),
-    role: z.enum(["admin", "manager", "commercial"]),
+    role: z.enum(["super_admin", "admin", "gestionnaire", "manager", "commercial"]),
     managerId: z.string(),
     agency: z.string().min(2, "Agence requise."),
     phone: z
@@ -75,6 +75,13 @@ export function UserFormDialog({
   // A manager can only create/manage commercials tied to themselves — the role
   // and manager fields are locked and hidden for them.
   const isManagerCreator = currentUser.role === "manager";
+  // Roles this account may hand out; an edited user keeps their current one.
+  const roles: UserRole[] = [
+    ...new Set([
+      ...(user ? [user.role] : []),
+      ...creatableRoles(currentUser.role),
+    ]),
+  ];
   const [managers, setManagers] = useState<User[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -131,8 +138,10 @@ export function UserFormDialog({
     setSubmitting(true);
     try {
       if (mode === "invite") {
-        if (!values.password || values.password.length < 6) {
-          toast.error("Mot de passe requis (6 caractères minimum).");
+        if (!values.password || values.password.length < MIN_PASSWORD_LENGTH) {
+          toast.error(
+            `Mot de passe requis (${MIN_PASSWORD_LENGTH} caractères minimum).`,
+          );
           setSubmitting(false);
           return;
         }
@@ -208,7 +217,7 @@ export function UserFormDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {ROLES.map((r) => (
+                      {roles.map((r) => (
                         <SelectItem key={r} value={r}>
                           {ROLE_LABELS[r]}
                         </SelectItem>
@@ -256,7 +265,7 @@ export function UserFormDialog({
                 <Input
                   type="password"
                   {...register("password")}
-                  placeholder="6 caractères minimum"
+                  placeholder={`${MIN_PASSWORD_LENGTH} caractères minimum`}
                 />
               </Field>
             )}

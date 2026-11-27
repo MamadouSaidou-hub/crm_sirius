@@ -75,13 +75,17 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "Super administrateur",
   admin: "Administrateur",
+  gestionnaire: "Gestionnaire",
   manager: "Manager",
   commercial: "Commercial",
 };
 
 export const ROLE_BADGE_VARIANT: Record<UserRole, BadgeVariant> = {
+  super_admin: "danger",
   admin: "gold",
+  gestionnaire: "success",
   manager: "teal",
   commercial: "muted",
 };

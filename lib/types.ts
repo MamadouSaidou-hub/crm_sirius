@@ -3,7 +3,12 @@
  * All data is mock and lives in memory; these types describe its shape.
  */
 
-export type UserRole = "admin" | "manager" | "commercial";
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "gestionnaire"
+  | "manager"
+  | "commercial";
 
 export interface User {
   id: string;

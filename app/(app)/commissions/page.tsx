@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useMockUser } from "@/lib/mock-auth";
+import { canEditRates } from "@/lib/permissions";
 import type { Insurer } from "@/lib/types";
 import { PRODUCT_LABELS } from "@/lib/constants";
 import { fetchInsurers } from "@/lib/data/insurers";
@@ -77,7 +78,7 @@ function today(): string {
 
 export default function CommissionsPage() {
   const { user } = useMockUser();
-  const allowed = user.role === "admin";
+  const allowed = canEditRates(user.role);
   const [version, refresh] = useReducer((x: number) => x + 1, 0);
   const [insurers, setInsurers] = useState<Insurer[]>([]);
   const [agreements, setAgreements] = useState<CommissionAgreement[] | null>(null);

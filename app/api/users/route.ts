@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MIN_PASSWORD_LENGTH, creatableRoles } from "@/lib/permissions";
+import type { UserRole } from "@/lib/types";
 
 /**
- * Create a cabinet user. Admins can create any role; managers can only create
- * commercials attached to themselves. The caller's session is checked, then the
+ * Create a cabinet user. The roles a caller may create depend on their own role
+ * (super admin: all; admin: not admins; manager: commercials attached to
+ * themselves). The caller's session is checked, then the
  * account is created with the service_role key (Auth admin API) and its profile
  * updated with the chosen role / manager / agency / phone.
  */
@@ -21,8 +24,8 @@ export async function POST(request: Request) {
     .select("role")
     .eq("id", user.id)
     .single();
-  const callerRole = profile?.role;
-  if (callerRole !== "admin" && callerRole !== "manager") {
+  const callerRole = profile?.role as UserRole | undefined;
+  if (!callerRole || creatableRoles(callerRole).length === 0) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -41,18 +44,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
-  let { role, managerId } = body;
-  const { name, email, password, agency, phone } = body;
+  let { managerId } = body;
+  const { role, name, email, password, agency, phone } = body;
   if (!name || !email || !password || !role) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
+  // Never trust the browser: re-check every field on the server.
+  const isText = (v: unknown, max: number): v is string =>
+    typeof v === "string" && v.length <= max;
+  if (
+    !isText(name, 120) ||
+    !isText(email, 254) ||
+    !isText(password, 128) ||
+    !isText(role, 32) ||
+    !isText(agency ?? "", 120) ||
+    !isText(phone ?? "", 32) ||
+    !isText(managerId ?? "", 64)
+  ) {
+    return NextResponse.json({ error: "bad_request" }, { status: 400 });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return NextResponse.json({ error: "weak_password" }, { status: 400 });
+  }
 
-  // A manager may only create commercials, always tied to themselves.
+  // Each role may only hand out the roles below it (see lib/permissions.ts):
+  // the director cannot create admins, a manager only commercials.
+  if (!creatableRoles(callerRole).includes(role as UserRole)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  // A manager's new commercial is always tied to that manager.
   if (callerRole === "manager") {
-    if (role !== "commercial") {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    }
     managerId = user.id;
+  }
+  // A commercial always reports to a manager.
+  if (role === "commercial" && !managerId) {
+    return NextResponse.json({ error: "manager_required" }, { status: 400 });
   }
 
   const admin = createAdminClient();

@@ -41,19 +41,19 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Conventions & taux",
     href: "/commissions",
     icon: Percent,
-    roles: ["admin"],
+    roles: ["super_admin", "admin"],
   },
   {
     label: "Équipe",
     href: "/users",
     icon: UsersRound,
-    roles: ["admin", "manager"],
+    roles: ["super_admin", "admin", "manager"],
   },
   {
     label: "Compagnies",
     href: "/partners",
     icon: Building2,
-    roles: ["admin"],
+    roles: ["super_admin", "admin"],
   },
   { label: "Paramètres", href: "/settings", icon: Settings },
 ];

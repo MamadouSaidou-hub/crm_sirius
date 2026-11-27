@@ -21,7 +21,36 @@ sont dans `.env.local` (non versionné) et dans les variables d'environnement Ve
 Les scripts SQL à exécuter dans le SQL Editor sont décrits dans [supabase/README.md](./supabase/README.md)
 (ordre : `01` à `05`, puis `06_payroll.sql` pour la paie des commerciaux, `07_commission_agreements.sql`
 pour les taux datés, `08_product_catalog.sql` pour le catalogue de produits et les taux par produit,
-puis `09_iard_policies.sql` pour les polices IARD : commission par police, part des accessoires par convention).
+puis `09_iard_policies.sql` pour les polices IARD : commission par police, part des accessoires par convention,
+`10_roles.sql` pour les rôles `super_admin` et `gestionnaire`, puis `11_security.sql` pour le journal d'audit
+et le verrou des profils).
+
+## Sécurité
+
+- **Base de données** : RLS activée partout ; les droits sont appliqués par la base, pas seulement par l'interface.
+- **Journal d'audit** (`audit_log`) : toute modification de la paie, des taux, des produits et des rôles est
+  tracée (auteur, date, avant, après), sans possibilité de modifier ni effacer. Lecture : admin / super admin.
+- **Rôles** : seul le super admin attribue ou retire le rôle admin ; un utilisateur ne peut pas changer son propre rôle.
+- **Serveur** : le client `service_role` est réservé au serveur (`server-only`) ; la création de compte revalide
+  tous les champs et impose 10 caractères minimum au mot de passe.
+- **En-têtes HTTP** : anti-framing, `nosniff`, HSTS, politique de référent (voir `next.config.ts`).
+- **Dépendances** : lancer `npm audit --omit=dev` régulièrement ; Next.js est maintenu à jour.
+- **À régler dans Supabase** (Authentication) : désactiver l'inscription publique, activer l'authentification
+  à deux facteurs pour les comptes admin.
+
+## Rôles
+
+| Rôle | Droits |
+|---|---|
+| `super_admin` (technicien) | tout, y compris créer des admins |
+| `admin` (DG) | tout : taux, barèmes, paie, comptes (sauf admins) |
+| `gestionnaire` | voit toute la paie ; saisit et modifie contrats, versements, polices de tous ; ne modifie pas les taux, ne supprime rien |
+| `manager` | son équipe |
+| `commercial` | ses propres données |
+
+Les droits sont décrits dans `lib/permissions.ts` (affichage) et appliqués par la base dans
+`supabase/10_roles.sql` (sécurité réelle). Après `10_roles.sql`, attribuer les deux rôles :
+`update public.profiles set role = 'super_admin' where email = '…';` puis `… 'admin' …` pour le DG.
 
 ## Tests
 

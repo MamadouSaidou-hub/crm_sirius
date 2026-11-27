@@ -3,7 +3,9 @@ import { cn, getInitials } from "@/lib/utils";
 import type { UserRole } from "@/lib/types";
 
 const ROLE_RING: Record<UserRole, string> = {
+  super_admin: "bg-sirius-danger/20 text-sirius-danger",
   admin: "bg-sirius-gold/20 text-sirius-gold",
+  gestionnaire: "bg-sirius-success/20 text-sirius-success",
   manager: "bg-sirius-teal/20 text-sirius-teal",
   commercial: "bg-secondary text-foreground",
 };

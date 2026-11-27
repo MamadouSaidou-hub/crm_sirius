@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/command";
 import { useMockUser } from "@/lib/mock-auth";
 import { canManageTeam } from "@/lib/access";
+import { isAdminLevel } from "@/lib/permissions";
 import { fetchProspects, type ProspectListItem } from "@/lib/data/prospects";
 
 interface CommandPaletteProps {
@@ -82,7 +83,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const pages = PAGES.filter(
     (p) =>
       (!p.managerOnly || canManageTeam(user)) &&
-      (!p.adminOnly || user.role === "admin"),
+      (!p.adminOnly || isAdminLevel(user.role)),
   );
 
   const go = (href: string) => {
