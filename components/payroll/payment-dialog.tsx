@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import type { PayrollContract } from "@/lib/data/payroll";
 import { createPayrollPayment } from "@/lib/data/payroll";
+import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,9 @@ interface PaymentDialogProps {
   period: string;
   userId: string;
   onCreated: () => void;
+  /** Controlled mode (opened from a parent menu, no trigger button). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function PaymentDialog({
@@ -43,8 +47,10 @@ export function PaymentDialog({
   period,
   userId,
   onCreated,
+  open: controlledOpen,
+  onOpenChange,
 }: PaymentDialogProps) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, controlled } = useDialogState(controlledOpen, onOpenChange);
   const [saving, setSaving] = useState(false);
   const [contractId, setContractId] = useState("");
   const [amount, setAmount] = useState("");
@@ -81,12 +87,14 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Wallet className="h-4 w-4" />
-          Saisir un versement
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline">
+            <Wallet className="h-4 w-4" />
+            Saisir un versement
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Versement — {period}</DialogTitle>

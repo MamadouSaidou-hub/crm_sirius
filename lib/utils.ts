@@ -11,17 +11,24 @@ export function formatFCFA(amount: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(Math.round(amount))} FCFA`;
 }
 
-/** Compact FCFA for cards, e.g. 1,3 M FCFA. */
+/** A bare number with thousands separators (unit shown elsewhere), e.g. 1 500 000. */
+export function formatNumber(amount: number): string {
+  return new Intl.NumberFormat("fr-FR").format(Math.round(amount));
+}
+
+/** Compact FCFA for cards, e.g. 1,3 M FCFA (negative amounts keep their sign). */
 export function formatFCFACompact(amount: number): string {
-  if (amount >= 1_000_000) {
-    return `${(amount / 1_000_000).toLocaleString("fr-FR", {
+  const sign = amount < 0 ? "−" : "";
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toLocaleString("fr-FR", {
       maximumFractionDigits: 1,
     })} M FCFA`;
   }
-  if (amount >= 1_000) {
-    return `${Math.round(amount / 1_000)} K FCFA`;
+  if (abs >= 1_000) {
+    return `${sign}${Math.round(abs / 1_000)} K FCFA`;
   }
-  return `${amount} FCFA`;
+  return `${sign}${Math.round(abs)} FCFA`;
 }
 
 /** Build initials from a full name, e.g. "Mamadou Diallo" -> "MD". */

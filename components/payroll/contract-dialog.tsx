@@ -10,6 +10,7 @@ import {
   createPayrollContract,
   type PayrollProduct,
 } from "@/lib/data/payroll";
+import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,14 +45,19 @@ interface ContractDialogProps {
   commercials: User[];
   products: PayrollProduct[];
   onCreated: () => void;
+  /** Controlled mode (opened from a parent menu, no trigger button). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ContractDialog({
   commercials,
   products,
   onCreated,
+  open: controlledOpen,
+  onOpenChange,
 }: ContractDialogProps) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, controlled } = useDialogState(controlledOpen, onOpenChange);
   const [saving, setSaving] = useState(false);
   const [commercialId, setCommercialId] = useState("");
   const [productId, setProductId] = useState("");
@@ -109,12 +115,14 @@ export function ContractDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <FilePlus2 className="h-4 w-4" />
-          Nouveau contrat
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <FilePlus2 className="h-4 w-4" />
+            Nouveau contrat
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nouveau contrat vie / retraite</DialogTitle>

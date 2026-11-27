@@ -75,6 +75,8 @@ export interface PayrollSnapshot {
   contracts: PayrollContract[];
   payments: VersementInput[];
   lines: PayrollLine[];
+  /** What the cabinet earns vs spends on these commercials, for the period. */
+  profitability: ProfitabilityPoint;
   /** IARD policies visible to the user (all months). */
   policies: PayrollPolicy[];
   /** Raw rate tables, so forms can preview a policy's commission. */
@@ -370,11 +372,15 @@ export async function fetchPayrollSnapshot(
 ): Promise<PayrollSnapshot> {
   const raw = await fetchPayrollRaw(current);
   const { plan, tauxCabinet } = ratesResolverFor(raw)(period);
+  const [profitability] = computeProfitability(profitabilityInputFor(raw), [
+    period,
+  ]);
   return {
     products: raw.products,
     contracts: raw.contracts,
     payments: raw.payments,
     lines: computePayrollLines(raw, period),
+    profitability,
     policies: raw.policies,
     agreements: raw.agreements,
     plans: raw.plans,
@@ -392,13 +398,9 @@ export interface ProfitabilitySnapshot {
   commercials: Array<CommercialProfitability & { commercial: User }>;
 }
 
-/** Cabinet profitability over `periods` (oldest first) for the visible team. */
-export async function fetchProfitability(
-  current: User,
-  periods: string[],
-): Promise<ProfitabilitySnapshot> {
-  const raw = await fetchPayrollRaw(current);
-  const input = {
+/** Everything the profitability computation needs, from the loaded rows. */
+function profitabilityInputFor(raw: PayrollRaw) {
+  return {
     commercialIds: raw.commercials.map((c) => c.id),
     contrats: raw.contracts,
     versements: raw.payments,
@@ -406,6 +408,15 @@ export async function fetchProfitability(
     polices: evaluatePolicies(raw),
     ratesFor: ratesResolverFor(raw),
   };
+}
+
+/** Cabinet profitability over `periods` (oldest first) for the visible team. */
+export async function fetchProfitability(
+  current: User,
+  periods: string[],
+): Promise<ProfitabilitySnapshot> {
+  const raw = await fetchPayrollRaw(current);
+  const input = profitabilityInputFor(raw);
   const latest = periods[periods.length - 1];
   const byId = new Map(raw.commercials.map((c) => [c.id, c]));
 

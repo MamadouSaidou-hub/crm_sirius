@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Banknote, Target, Users } from "lucide-react";
+import { Banknote, Landmark, Scale, Target, Users } from "lucide-react";
 import { useMockUser } from "@/lib/mock-auth";
 import { MissingAgreementError, MissingPlanError } from "@/lib/payroll/rates";
 import { CURRENT_PERIOD } from "@/lib/data/performance";
@@ -15,10 +15,8 @@ import { PeriodSelector } from "@/components/performance/period-selector";
 import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { PayrollExplainer } from "@/components/payroll/payroll-explainer";
-import { ContractDialog } from "@/components/payroll/contract-dialog";
-import { PolicyDialog } from "@/components/payroll/policy-dialog";
+import { NewMenu } from "@/components/payroll/new-menu";
 import { PoliciesTable } from "@/components/payroll/policies-table";
-import { PaymentDialog } from "@/components/payroll/payment-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Missing agreement/plan errors are actionable for the admin: show them as-is. */
@@ -69,12 +67,6 @@ export default function PayrollPage() {
   }, [user, period]);
 
   const lines = snapshot?.lines ?? [];
-  const perPolicyProducts = (snapshot?.products ?? []).filter(
-    (p) => p.commissionMode === "per_policy",
-  );
-  const perPaymentProducts = (snapshot?.products ?? []).filter(
-    (p) => p.commissionMode === "per_payment",
-  );
   const monthPolicies = (snapshot?.policies ?? []).filter(
     (p) => p.dateEffet.slice(0, 7) === period,
   );
@@ -89,32 +81,22 @@ export default function PayrollPage() {
     <div className="space-y-6">
       <PageHeader
         title="Paie des commerciaux"
-        description={`Objectif mensuel : ${formatFCFA(OBJECTIF_MENSUEL_COMMERCIAL)} par commercial`}
+        description={
+          user.role === "commercial" || !snapshot
+            ? `Objectif mensuel : ${formatFCFA(OBJECTIF_MENSUEL_COMMERCIAL)}`
+            : `Objectif mensuel : ${formatFCFA(OBJECTIF_MENSUEL_COMMERCIAL)} par commercial · ${lines.length} commercial${lines.length > 1 ? "ux" : ""}`
+        }
         actions={
           <>
             <PeriodSelector value={period} onChange={setPeriod} />
             {canWrite && snapshot && (
-              <>
-                <PaymentDialog
-                  contracts={snapshot.contracts}
-                  period={period}
-                  userId={user.id}
-                  onCreated={load}
-                />
-                <PolicyDialog
-                  commercials={lines.map((l) => l.commercial)}
-                  products={perPolicyProducts}
-                  agreements={snapshot.agreements}
-                  plans={snapshot.plans}
-                  userId={user.id}
-                  onCreated={load}
-                />
-                <ContractDialog
-                  commercials={lines.map((l) => l.commercial)}
-                  products={perPaymentProducts}
-                  onCreated={load}
-                />
-              </>
+              <NewMenu
+                snapshot={snapshot}
+                commercials={lines.map((l) => l.commercial)}
+                period={period}
+                userId={user.id}
+                onCreated={load}
+              />
             )}
           </>
         }
@@ -152,6 +134,7 @@ export default function PayrollPage() {
             lines={lines}
             contracts={snapshot.contracts}
             policies={snapshot.policies}
+            products={snapshot.products}
             plan={snapshot.plan}
           />
           {monthPolicies.length > 0 && (
@@ -177,25 +160,36 @@ export default function PayrollPage() {
               value={formatFCFACompact(totalProduction)}
               icon={Target}
               tone="teal"
+              hint={
+                belowTarget === 0
+                  ? `Objectif atteint par les ${lines.length} commerciaux`
+                  : `${belowTarget} commercial${belowTarget > 1 ? "ux" : ""} sous l'objectif de ${formatFCFACompact(OBJECTIF_MENSUEL_COMMERCIAL)}`
+              }
             />
             <StatCard
-              label="Commerciaux"
-              value={String(lines.length)}
-              icon={Users}
-              tone="success"
+              label="Commission du cabinet"
+              value={formatFCFACompact(snapshot.profitability.commissionCabinet)}
+              icon={Landmark}
+              tone="teal"
+              hint="Ce que rapportent les compagnies"
             />
             <StatCard
-              label="Sous l'objectif"
-              value={String(belowTarget)}
-              icon={AlertTriangle}
-              tone={belowTarget > 0 ? "danger" : "success"}
-              hint={`Objectif ${formatFCFACompact(OBJECTIF_MENSUEL_COMMERCIAL)}`}
+              label="Solde du cabinet"
+              value={formatFCFACompact(snapshot.profitability.net)}
+              icon={Scale}
+              tone={snapshot.profitability.net >= 0 ? "success" : "danger"}
+              hint={
+                snapshot.profitability.net >= 0
+                  ? "Commission moins paie : gain"
+                  : "Commission moins paie : perte"
+              }
             />
           </div>
           <PayrollTable
             lines={lines}
             contracts={snapshot.contracts}
             policies={snapshot.policies}
+            products={snapshot.products}
             plan={snapshot.plan}
           />
           {monthPolicies.length > 0 && (

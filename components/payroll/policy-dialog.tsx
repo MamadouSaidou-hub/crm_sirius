@@ -18,6 +18,7 @@ import type {
 } from "@/lib/payroll/rates";
 import { formatFCFA } from "@/lib/utils";
 import { formatRate } from "@/components/payroll/payroll-explainer";
+import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,9 @@ interface PolicyDialogProps {
   plans: RemunerationPlanEntry[];
   userId: string;
   onCreated: () => void;
+  /** Controlled mode (opened from a parent menu, no trigger button). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function PolicyDialog({
@@ -75,8 +79,10 @@ export function PolicyDialog({
   plans,
   userId,
   onCreated,
+  open: controlledOpen,
+  onOpenChange,
 }: PolicyDialogProps) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, controlled } = useDialogState(controlledOpen, onOpenChange);
   const [saving, setSaving] = useState(false);
   const [insurers, setInsurers] = useState<Insurer[]>([]);
   const [commercialId, setCommercialId] = useState("");
@@ -223,12 +229,14 @@ export function PolicyDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <ShieldPlus className="h-4 w-4" />
-          Nouvelle police IARD
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline">
+            <ShieldPlus className="h-4 w-4" />
+            Nouvelle police IARD
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouvelle police IARD</DialogTitle>
