@@ -38,6 +38,8 @@ export interface ProfitabilityPoint {
   encaisse: number;
   /** Cabinet commission on contracts still paying the commercial. */
   commissionPerimetre: number;
+  /** Part of the cabinet commission coming from IARD policies (one-off, in the effective month). */
+  commissionPolices: number;
   /** Cabinet commission on contracts out of scope: pure margin. */
   commissionHorsPerimetre: number;
   /** commissionPerimetre + commissionHorsPerimetre. */
@@ -144,6 +146,7 @@ export function computeProfitability(
       periode,
       encaisse,
       commissionPerimetre,
+      commissionPolices,
       commissionHorsPerimetre,
       commissionCabinet,
       baseFixe: lignes.reduce((s, l) => s + l.baseFixe, 0),

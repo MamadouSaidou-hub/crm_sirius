@@ -3,9 +3,10 @@
 import { memo } from "react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,16 +21,22 @@ function shortMonth(period: string): string {
   return periodLabel(period).split(" ")[0].slice(0, 4);
 }
 
+/**
+ * Six months of cabinet commission (life and IARD stacked) against what the
+ * commercials cost, with the balance drawn as a line.
+ */
 function ProfitabilityChartImpl({ data }: { data: ProfitabilityPoint[] }) {
   const rows = data.map((p) => ({
     month: shortMonth(p.periode),
-    commission: Math.round(p.commissionCabinet),
+    vie: Math.round(p.commissionCabinet - p.commissionPolices),
+    iard: Math.round(p.commissionPolices),
     depenses: Math.round(p.depensesPaie),
+    net: Math.round(p.net),
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
         <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
         <XAxis dataKey="month" {...AXIS_PROPS} axisLine={false} />
         <YAxis
@@ -44,9 +51,16 @@ function ProfitabilityChartImpl({ data }: { data: ProfitabilityPoint[] }) {
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar
-          dataKey="commission"
-          name="Commission cabinet"
+          dataKey="vie"
+          name="Commission vie"
+          stackId="commission"
           fill={CHART_COLORS.success}
+        />
+        <Bar
+          dataKey="iard"
+          name="Commission IARD"
+          stackId="commission"
+          fill={CHART_COLORS.teal}
           radius={[4, 4, 0, 0]}
         />
         <Bar
@@ -55,7 +69,15 @@ function ProfitabilityChartImpl({ data }: { data: ProfitabilityPoint[] }) {
           fill={CHART_COLORS.danger}
           radius={[4, 4, 0, 0]}
         />
-      </BarChart>
+        <Line
+          type="monotone"
+          dataKey="net"
+          name="Solde"
+          stroke={CHART_COLORS.gold}
+          strokeWidth={2}
+          dot={{ r: 3 }}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

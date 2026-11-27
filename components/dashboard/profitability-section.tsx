@@ -8,6 +8,7 @@ import { recentPeriods } from "@/lib/data/performance";
 import { periodLabel } from "@/lib/date";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ProfitabilityChart } from "@/components/dashboard/profitability-chart";
+import { CommercialProfitChart } from "@/components/dashboard/commercial-profit-chart";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   Card,
@@ -78,14 +79,18 @@ export function ProfitabilitySection({ user }: { user: User }) {
           value={formatFCFACompact(current.depensesPaie)}
           icon={Banknote}
           tone="danger"
-          hint={`Base ${formatFCFACompact(current.baseFixe)} · prime ${formatFCFACompact(current.primePerformance)}`}
+          hint={`Base ${formatFCFACompact(current.baseFixe)}${
+            current.primePerformance > 0
+              ? ` · prime ${formatFCFACompact(current.primePerformance)}`
+              : ""
+          } · commissions ${formatFCFACompact(current.commissionAcquisition)}`}
         />
         <StatCard
           label="Commission cabinet"
           value={formatFCFACompact(current.commissionCabinet)}
           icon={HandCoins}
           tone="success"
-          hint={`Sur ${formatFCFACompact(current.encaisse)} encaissés`}
+          hint={`Dont IARD ${formatFCFACompact(current.commissionPolices)}`}
         />
         <StatCard
           label="Résultat net"
@@ -117,7 +122,18 @@ export function ProfitabilitySection({ user }: { user: User }) {
           <CardHeader>
             <CardTitle>Par commercial — {label}</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto p-0">
+          <CardContent className="space-y-4 overflow-x-auto p-0">
+            {snapshot.commercials.length > 0 && (
+              <div className="px-4 pt-2">
+                <CommercialProfitChart
+                  data={snapshot.commercials.map((row) => ({
+                    name: row.commercial.name,
+                    rapporte: row.commissionCabinet,
+                    coute: row.cout,
+                  }))}
+                />
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -167,10 +183,12 @@ export function ProfitabilitySection({ user }: { user: User }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Sur les 3 premiers mois d&apos;un contrat, le commercial coûte plus
-        (base fixe + prime + commission) que la commission perçue : le cabinet
+        Vie : sur les 3 premiers mois d&apos;un contrat, le commercial coûte
+        plus (base fixe + commission) que la commission perçue ; le cabinet
         rentabilise le contrat sur les versements suivants (mois 4 et au-delà),
-        qui lui reviennent en totalité.
+        qui lui reviennent en totalité. IARD : la commission est perçue une
+        seule fois, à la date d&apos;effet de la police, et la part du
+        commercial est versée le même mois.
       </p>
     </section>
   );

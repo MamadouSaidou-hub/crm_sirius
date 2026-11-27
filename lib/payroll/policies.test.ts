@@ -206,6 +206,8 @@ describe("integration with payroll and profitability", () => {
     const cabinet = 20_000 + (40_000 * 0.25 + 3_000);
     const share = cabinet * 0.2;
     expect(dec.commissionCabinet).toBeCloseTo(cabinet);
+    // With no life contract, every cabinet franc comes from the IARD policies.
+    expect(dec.commissionPolices).toBeCloseTo(cabinet);
     expect(dec.depensesPaie).toBeCloseTo(30_000 + share);
     expect(dec.net).toBeCloseTo(cabinet - 30_000 - share);
   });
