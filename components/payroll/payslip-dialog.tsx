@@ -69,7 +69,7 @@ export function PayslipDialog({
               </Button>
             </DialogHeader>
 
-            <div className="payslip-print rounded-md bg-white p-8 text-sm text-black">
+            <div className="payslip-print overflow-x-auto rounded-md bg-white p-4 text-sm text-black sm:p-8">
               <header className="flex items-start justify-between border-b-2 border-neutral-800 pb-4">
                 <div>
                   <p className="text-xl font-bold tracking-wide">

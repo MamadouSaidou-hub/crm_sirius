@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type {
   PayrollContract,
   PayrollLine,
@@ -10,12 +10,12 @@ import type {
 } from "@/lib/data/payroll";
 import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
 import type { RemunerationPlan } from "@/lib/payroll/rates";
-import { formatRate } from "@/components/payroll/payroll-explainer";
 import { attainment } from "@/lib/data/performance";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { LineDetail } from "@/components/payroll/line-detail";
 import { PayslipDialog } from "@/components/payroll/payslip-dialog";
-import { Badge } from "@/components/ui/badge";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -78,10 +78,20 @@ function ObjectiveCell({ production }: { production: number }) {
   );
 }
 
-const TH = "px-2 py-1 text-xs font-medium text-muted-foreground";
-const TD = "px-2 py-1.5";
+/** Small label + value pair used in the phone cards. */
+function Figure({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm">{formatNumber(value)}</dd>
+    </div>
+  );
+}
 
-/** One row per commercial, expandable to the breakdown by kind of business. */
+/**
+ * One row per commercial on tablet/desktop (a table), one card per commercial
+ * on phones; both expand to the same breakdown by kind of business.
+ */
 export function PayrollTable({
   lines,
   contracts,
@@ -101,12 +111,25 @@ export function PayrollTable({
   const showIard = lines.some((l) => l.polices.length > 0);
   const columnCount = 6 + (showPrime ? 1 : 0) + (showIard ? 1 : 0);
 
+  const toggle = (id: string) => setOpenId(openId === id ? null : id);
+
+  const detailOf = (line: PayrollLine) => (
+    <LineDetail
+      line={line}
+      plan={plan}
+      contractById={contractById}
+      policyById={policyById}
+      productById={productById}
+      onPayslip={() => setPayslipLine(line)}
+    />
+  );
+
   return (
     <div className="space-y-1.5">
-      <p className="text-right text-xs text-muted-foreground">
-        Montants en FCFA
-      </p>
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <p className="text-right text-xs text-muted-foreground">Montants en FCFA</p>
+
+      {/* Tablet and desktop: table */}
+      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -129,7 +152,7 @@ export function PayrollTable({
                 <Fragment key={line.commercialId}>
                   <TableRow
                     className="cursor-pointer"
-                    onClick={() => setOpenId(open ? null : line.commercialId)}
+                    onClick={() => toggle(line.commercialId)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -172,151 +195,10 @@ export function PayrollTable({
                       {formatNumber(line.total)}
                     </TableCell>
                   </TableRow>
-
                   {open && (
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableCell colSpan={columnCount} className="p-4">
-                        <div className="mb-3 flex justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setPayslipLine(line)}
-                          >
-                            <FileText className="h-4 w-4" />
-                            Bulletin de paie
-                          </Button>
-                        </div>
-                        {line.contrats.length === 0 && line.polices.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">
-                            Aucun contrat ni police ce mois — seule la base fixe
-                            est garantie.
-                          </p>
-                        ) : (
-                          <div className="space-y-5">
-                            {line.contrats.length > 0 && (
-                              <section>
-                                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Vie / Retraite
-                                </h4>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full min-w-[520px] text-sm">
-                                    <thead>
-                                      <tr>
-                                        <th className={cn(TH, "text-left")}>Client</th>
-                                        <th className={cn(TH, "text-left")}>Mois</th>
-                                        <th className={cn(TH, "text-right")}>Base</th>
-                                        <th className={cn(TH, "text-right")}>Taux effectif</th>
-                                        <th className={cn(TH, "text-right")}>Commission</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {line.contrats.map((detail) => (
-                                        <tr
-                                          key={detail.contratId}
-                                          className="border-t border-border/50"
-                                        >
-                                          <td className={cn(TD, "font-medium")}>
-                                            {contractById.get(detail.contratId)
-                                              ?.clientName ?? "Contrat"}
-                                          </td>
-                                          {detail.eligible ? (
-                                            <>
-                                              <td className={TD}>
-                                                <Badge variant="outline">
-                                                  {detail.age}/{plan.dureeMois}
-                                                </Badge>
-                                              </td>
-                                              <td className={cn(TD, "text-right")}>
-                                                {formatNumber(detail.assiette)}
-                                              </td>
-                                              <td className={cn(TD, "text-right text-muted-foreground")}>
-                                                {formatRate(detail.tauxCommission)}
-                                              </td>
-                                              <td className={cn(TD, "text-right font-semibold")}>
-                                                {formatNumber(detail.commissionAcquisition)}
-                                              </td>
-                                            </>
-                                          ) : (
-                                            <td
-                                              colSpan={4}
-                                              className={cn(TD, "text-muted-foreground")}
-                                            >
-                                              {detail.motifExclusion}
-                                            </td>
-                                          )}
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </section>
-                            )}
-
-                            {line.polices.length > 0 && (
-                              <section>
-                                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  IARD
-                                </h4>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full min-w-[640px] text-sm">
-                                    <thead>
-                                      <tr>
-                                        <th className={cn(TH, "text-left")}>Assuré</th>
-                                        <th className={cn(TH, "text-left")}>Produit</th>
-                                        <th className={cn(TH, "text-right")}>Base</th>
-                                        <th className={cn(TH, "text-right")}>Taux cabinet</th>
-                                        <th className={cn(TH, "text-right")}>Commission cabinet</th>
-                                        <th className={cn(TH, "text-right")}>Part commercial</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {line.polices.map((police) => {
-                                        const policy = policyById.get(police.policyId);
-                                        return (
-                                          <tr
-                                            key={police.policyId}
-                                            className="border-t border-border/50"
-                                          >
-                                            <td className={cn(TD, "font-medium")}>
-                                              {policy?.clientName ?? "Police"}
-                                              {policy?.reference && (
-                                                <span className="block text-xs font-normal text-muted-foreground">
-                                                  {policy.reference}
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td className={TD}>
-                                              {policy
-                                                ? (productById.get(policy.produitId)?.label ?? "—")
-                                                : "—"}
-                                            </td>
-                                            <td className={cn(TD, "text-right")}>
-                                              {formatNumber(police.assiette)}
-                                            </td>
-                                            <td className={cn(TD, "text-right text-muted-foreground")}>
-                                              {formatRate(police.tauxCabinet)}
-                                              {police.partAccessoires > 0 &&
-                                                ` + ${formatRate(police.partAccessoires)} acc.`}
-                                            </td>
-                                            <td className={cn(TD, "text-right")}>
-                                              {formatNumber(police.commissionCabinet)}
-                                            </td>
-                                            <td className={cn(TD, "text-right font-semibold")}>
-                                              {formatNumber(police.commissionCommercial)}
-                                              <span className="block text-xs font-normal text-muted-foreground">
-                                                {formatRate(police.retrocession)}
-                                              </span>
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </section>
-                            )}
-                          </div>
-                        )}
+                        {detailOf(line)}
                       </TableCell>
                     </TableRow>
                   )}
@@ -326,6 +208,60 @@ export function PayrollTable({
           </TableBody>
         </Table>
       </div>
+
+      {/* Phone: one card per commercial */}
+      <div className="space-y-3 md:hidden">
+        {lines.map((line) => {
+          const open = openId === line.commercialId;
+          return (
+            <Card key={line.commercialId}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <UserAvatar
+                      name={line.commercial.name}
+                      role="commercial"
+                      className="h-8 w-8"
+                    />
+                    <span className="truncate font-medium">
+                      {line.commercial.name}
+                    </span>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-semibold leading-tight">
+                      {formatNumber(line.total)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">à payer</p>
+                  </div>
+                </div>
+
+                <ObjectiveCell production={line.production} />
+
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <Figure label="Base fixe" value={line.baseFixe} />
+                  {showPrime && <Figure label="Prime" value={line.primePerformance} />}
+                  <Figure label="Commissions vie" value={line.commissionAcquisitionTotale} />
+                  {showIard && (
+                    <Figure label="Commissions IARD" value={line.commissionPolices} />
+                  )}
+                </dl>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => toggle(line.commercialId)}
+                  aria-expanded={open}
+                >
+                  {open ? "Masquer le détail" : "Voir le détail"}
+                </Button>
+                {open && detailOf(line)}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
       <PayslipDialog
         line={payslipLine}
         period={period}
