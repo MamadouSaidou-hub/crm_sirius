@@ -29,6 +29,11 @@ export interface CommissionAgreement {
   /** Share of the cabinet commission passed to the commercial; null = plan default. */
   retrocessionRate: number | null;
   base: CommissionBase;
+  /**
+   * Share of a policy's accessories that goes to the cabinet, 0..1
+   * (0 = none, 0.5 = half, 1 = all). Only used by per-policy (IARD) products.
+   */
+  accessoryShare: number;
   /** 'YYYY-MM-DD' — valid from this date until a newer agreement of the same scope. */
   effectiveFrom: string;
   note?: string;

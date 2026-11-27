@@ -69,6 +69,14 @@ export function PayrollExplainer({ plan, cabinetRates }: PayrollExplainerProps) 
                 la compagnie (selon la convention) et en reverse{" "}
                 {formatRate(plan.tauxRetrocession)} au commercial.
               </li>
+              <li>
+                <span className="text-foreground">Polices IARD (auto…) :</span>{" "}
+                la commission du cabinet = prime nette × taux de la compagnie +
+                la part des accessoires prévue par la convention. Le commercial
+                en reçoit {formatRate(plan.tauxRetrocession)}, une seule fois,
+                le mois de la date d&apos;effet de la police (pas de règle des{" "}
+                {plan.dureeMois} mois).
+              </li>
             </ul>
 
             <div className="rounded-md border border-border bg-muted/30 p-3">

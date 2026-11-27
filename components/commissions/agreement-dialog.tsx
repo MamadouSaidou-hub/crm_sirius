@@ -46,6 +46,7 @@ const schema = z.object({
   insurerId: z.string().min(1, "Compagnie requise"),
   ratePercent: percent,
   retrocessionPercent: percent.nullable(),
+  accessoryPercent: percent,
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"),
 });
 
@@ -75,6 +76,7 @@ export function AgreementDialog({
   const [ratePercent, setRatePercent] = useState("");
   const [retrocession, setRetrocession] = useState("");
   const [base, setBase] = useState<CommissionBase>("ttc");
+  const [accessoryPercent, setAccessoryPercent] = useState("0");
   const [effectiveFrom, setEffectiveFrom] = useState(firstOfCurrentMonth());
   const [note, setNote] = useState("");
 
@@ -91,6 +93,8 @@ export function AgreementDialog({
       insurerId,
       ratePercent: ratePercent === "" ? Number.NaN : Number(ratePercent),
       retrocessionPercent: retrocession === "" ? null : Number(retrocession),
+      accessoryPercent:
+        accessoryPercent === "" ? 0 : Number(accessoryPercent),
       effectiveFrom,
     });
     if (!parsed.success) {
@@ -115,6 +119,7 @@ export function AgreementDialog({
             ? null
             : parsed.data.retrocessionPercent / 100,
         base,
+        accessoryShare: parsed.data.accessoryPercent / 100,
         effectiveFrom: parsed.data.effectiveFrom,
         note: note.trim() || undefined,
         createdBy: userId,
@@ -123,6 +128,7 @@ export function AgreementDialog({
       setOpen(false);
       setRatePercent("");
       setRetrocession("");
+      setAccessoryPercent("0");
       setNote("");
       onCreated();
     } catch {
@@ -244,6 +250,22 @@ export function AgreementDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ag-acc">Part des accessoires pour le cabinet (%)</Label>
+            <Input
+              id="ag-acc"
+              type="number"
+              min={0}
+              max={100}
+              step="1"
+              value={accessoryPercent}
+              onChange={(e) => setAccessoryPercent(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Polices IARD uniquement : 0 = aucun accessoire, 50 = la moitié,
+              100 = tous les accessoires s&apos;ajoutent à la commission.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ag-note">Note</Label>

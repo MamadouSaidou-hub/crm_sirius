@@ -14,6 +14,7 @@
  */
 
 import type { RemunerationPlan } from "@/lib/payroll/rates";
+import type { PolicyEvaluated } from "@/lib/payroll/policies";
 
 export type AssietteType = "FIGEE" | "VARIABLE";
 export type FrequenceCotisation = "mensuelle" | "annuelle";
@@ -76,8 +77,12 @@ export interface RemunerationResult {
   production: number;
   primePerformance: number;
   commissionAcquisitionTotale: number;
+  /** Commercial's share of the IARD policies taking effect this month. */
+  commissionPolices: number;
   total: number;
   contrats: ContratDetail[];
+  /** IARD policies taking effect this month (already priced). */
+  polices: PolicyEvaluated[];
 }
 
 /** Splits a 'YYYY-MM' or 'YYYY-MM-DD' string into {annee, mois} (mois 1-12). */
@@ -147,6 +152,11 @@ export interface CalculerRemunerationInput {
    * fixe still comes from `plan` (the month's). Defaults to `plan`.
    */
   planOf?: (contratId: string) => RemunerationPlan;
+  /**
+   * IARD policies already priced at their effective date (see `policies.ts`).
+   * Only those of this commercial taking effect in `periode` count, once.
+   */
+  polices?: PolicyEvaluated[];
 }
 
 /**
@@ -220,6 +230,14 @@ export function calculerRemuneration(
     0,
   );
 
+  const polices = (input.polices ?? []).filter(
+    (p) => p.commercialId === commercialId && p.periode === periode,
+  );
+  const commissionPolices = polices.reduce(
+    (sum, p) => sum + p.commissionCommercial,
+    0,
+  );
+
   return {
     commercialId,
     periode,
@@ -227,7 +245,13 @@ export function calculerRemuneration(
     production,
     primePerformance,
     commissionAcquisitionTotale,
-    total: plan.baseFixe + primePerformance + commissionAcquisitionTotale,
+    commissionPolices,
+    total:
+      plan.baseFixe +
+      primePerformance +
+      commissionAcquisitionTotale +
+      commissionPolices,
     contrats: contratsDetail,
+    polices,
   };
 }

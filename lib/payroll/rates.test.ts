@@ -23,6 +23,7 @@ function agreement(
     productType: "vie",
     retrocessionRate: null,
     base: "ttc",
+    accessoryShare: 0,
     ...over,
   };
 }

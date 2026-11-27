@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Insurer, ProductSegment, ProductType } from "@/lib/types";
 import { PRODUCT_LABELS } from "@/lib/constants";
 import { createPayrollProduct } from "@/lib/data/payroll";
+import type { CommissionMode } from "@/lib/data/payroll";
 import type {
   AssietteType,
   FrequenceCotisation,
@@ -35,6 +36,11 @@ export const SEGMENT_LABELS: Record<ProductSegment, string> = {
   groupe: "Groupe",
 };
 
+export const MODE_LABELS: Record<CommissionMode, string> = {
+  per_payment: "À chaque versement (vie)",
+  per_policy: "Une fois par police (IARD)",
+};
+
 export const ASSIETTE_LABELS: Record<AssietteType, string> = {
   VARIABLE: "Variable (montant réellement versé)",
   FIGEE: "Figée (fixée à la signature)",
@@ -59,6 +65,7 @@ export function ProductDialog({ insurers, onCreated }: ProductDialogProps) {
   const [label, setLabel] = useState("");
   const [productType, setProductType] = useState<ProductType>("vie");
   const [segment, setSegment] = useState<ProductSegment>("individuel");
+  const [mode, setMode] = useState<CommissionMode>("per_payment");
   const [assiette, setAssiette] = useState<AssietteType>("VARIABLE");
   const [frequence, setFrequence] = useState<FrequenceCotisation>("mensuelle");
   const [subscription, setSubscription] = useState("0");
@@ -82,6 +89,7 @@ export function ProductDialog({ insurers, onCreated }: ProductDialogProps) {
         label: parsed.data.label,
         productType,
         segment,
+        commissionMode: mode,
         assietteType: assiette,
         frequence,
         defaultSubscription: parsed.data.defaultSubscription,
@@ -174,6 +182,28 @@ export function ProductDialog({ insurers, onCreated }: ProductDialogProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Commission</Label>
+            <Select
+              value={mode}
+              onValueChange={(v) => setMode(v as CommissionMode)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(MODE_LABELS) as CommissionMode[]).map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {MODE_LABELS[m]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Vie : une commission à chaque versement. IARD (auto, voyage,
+              santé…) : une seule commission, à la date d&apos;effet de la police.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

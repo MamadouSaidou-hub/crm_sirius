@@ -2,7 +2,11 @@
 
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { PayrollContract, PayrollLine } from "@/lib/data/payroll";
+import type {
+  PayrollContract,
+  PayrollLine,
+  PayrollPolicy,
+} from "@/lib/data/payroll";
 import { OBJECTIF_MENSUEL_COMMERCIAL } from "@/lib/payroll/config";
 import type { RemunerationPlan } from "@/lib/payroll/rates";
 import { formatRate } from "@/components/payroll/payroll-explainer";
@@ -22,14 +26,21 @@ import { cn, formatFCFA } from "@/lib/utils";
 interface PayrollTableProps {
   lines: PayrollLine[];
   contracts: PayrollContract[];
+  policies: PayrollPolicy[];
   /** Plan in force for the displayed period. */
   plan: RemunerationPlan;
 }
 
 /** One row per commercial, expandable to the per-contract breakdown. */
-export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
+export function PayrollTable({
+  lines,
+  contracts,
+  policies,
+  plan,
+}: PayrollTableProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const contractById = new Map(contracts.map((c) => [c.id, c]));
+  const policyById = new Map(policies.map((p) => [p.id, p]));
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -90,7 +101,9 @@ export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
                     {formatFCFA(line.primePerformance)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatFCFA(line.commissionAcquisitionTotale)}
+                    {formatFCFA(
+                      line.commissionAcquisitionTotale + line.commissionPolices,
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatFCFA(line.total)}
@@ -100,7 +113,7 @@ export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
                 {open && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableCell colSpan={7} className="p-4">
-                      {line.contrats.length === 0 ? (
+                      {line.contrats.length === 0 && line.polices.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                           Aucun contrat — seule la base fixe est garantie.
                         </p>
@@ -134,6 +147,25 @@ export function PayrollTable({ lines, contracts, plan }: PayrollTableProps) {
                                   {detail.motifExclusion}
                                 </span>
                               )}
+                            </li>
+                          ))}
+                          {line.polices.map((police) => (
+                            <li
+                              key={police.policyId}
+                              className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                            >
+                              <span className="font-medium">
+                                {policyById.get(police.policyId)?.clientName ??
+                                  "Police"}
+                              </span>
+                              <span className="flex flex-wrap items-center gap-3 text-muted-foreground">
+                                <Badge variant="outline">Police IARD</Badge>
+                                <span className="text-foreground">
+                                  Cabinet : {formatFCFA(police.commissionCabinet)}{" "}
+                                  × {formatRate(police.retrocession)} ={" "}
+                                  {formatFCFA(police.commissionCommercial)}
+                                </span>
+                              </span>
                             </li>
                           ))}
                         </ul>

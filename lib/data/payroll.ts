@@ -19,6 +19,11 @@ import {
   type RemunerationPlanEntry,
 } from "@/lib/payroll/rates";
 import {
+  evaluatePolicy,
+  type PolicyEvaluated,
+  type PolicyInput,
+} from "@/lib/payroll/policies";
+import {
   computeCommercialProfitability,
   computeProfitability,
   type CommercialProfitability,
@@ -27,6 +32,13 @@ import {
 
 /* --- Types ----------------------------------------------------------- */
 
+/**
+ * How a product is commissioned:
+ *  - per_payment: on every payment of a contract (life), for its first N months;
+ *  - per_policy: once, when the policy takes effect (IARD).
+ */
+export type CommissionMode = "per_payment" | "per_policy";
+
 export interface PayrollProduct extends ProduitInput {
   code: string;
   label: string;
@@ -34,8 +46,16 @@ export interface PayrollProduct extends ProduitInput {
   productType: ProductType;
   insurerId: string;
   segment: ProductSegment;
+  commissionMode: CommissionMode;
   defaultSubscription: number;
   minPayment: number;
+}
+
+/** An IARD policy as stored (see `PolicyInput` for the pricing fields). */
+export interface PayrollPolicy extends PolicyInput {
+  clientName: string;
+  reference: string | null;
+  dateExpiration: string | null;
 }
 
 export interface PayrollContract extends ContratInput {
@@ -55,10 +75,30 @@ export interface PayrollSnapshot {
   contracts: PayrollContract[];
   payments: VersementInput[];
   lines: PayrollLine[];
+  /** IARD policies visible to the user (all months). */
+  policies: PayrollPolicy[];
+  /** Raw rate tables, so forms can preview a policy's commission. */
+  agreements: CommissionAgreement[];
+  plans: RemunerationPlanEntry[];
   /** Plan in force for the requested period. */
   plan: RemunerationPlan;
   /** Cabinet commission rate (0..1) by contract id, for the requested period. */
   cabinetRates: Record<string, number>;
+}
+
+export interface NewPayrollPolicy {
+  commercialId: string;
+  productId: string;
+  clientName: string;
+  reference: string | null;
+  effectiveDate: string;
+  expiryDate: string | null;
+  primeNette: number;
+  fga: number;
+  taxes: number;
+  accessories: number;
+  primeTtc: number;
+  createdBy: string;
 }
 
 export interface NewPayrollContract {
@@ -82,10 +122,26 @@ interface ProductRow {
   product_type: ProductType;
   insurer_id: string;
   segment: ProductSegment;
+  commission_mode: CommissionMode;
   default_subscription: number;
   min_payment: number;
   assiette_type: ProduitInput["assietteType"];
   frequency: ProduitInput["frequenceCotisation"];
+}
+
+interface PolicyRow {
+  id: string;
+  commercial_id: string;
+  product_id: string;
+  client_name: string;
+  reference: string | null;
+  effective_date: string;
+  expiry_date: string | null;
+  prime_nette: number;
+  fga: number;
+  taxes: number;
+  accessories: number;
+  prime_ttc: number;
 }
 
 interface ContractRow {
@@ -116,7 +172,7 @@ export async function fetchPayrollProducts(): Promise<PayrollProduct[]> {
   const { data, error } = await createClient()
     .from("payroll_products")
     .select(
-      "id,code,label,product_type,insurer_id,segment,default_subscription,min_payment,assiette_type,frequency",
+      "id,code,label,product_type,insurer_id,segment,commission_mode,default_subscription,min_payment,assiette_type,frequency",
     )
     .order("label");
   if (error) throw error;
@@ -127,6 +183,7 @@ export async function fetchPayrollProducts(): Promise<PayrollProduct[]> {
     productType: r.product_type,
     insurerId: r.insurer_id,
     segment: r.segment,
+    commissionMode: r.commission_mode,
     defaultSubscription: Number(r.default_subscription),
     minPayment: Number(r.min_payment),
     assietteType: r.assiette_type,
@@ -172,10 +229,35 @@ export async function fetchPayrollPayments(): Promise<VersementInput[]> {
   }));
 }
 
+export async function fetchPayrollPolicies(): Promise<PayrollPolicy[]> {
+  const { data, error } = await createClient()
+    .from("payroll_policies")
+    .select(
+      "id,commercial_id,product_id,client_name,reference,effective_date,expiry_date,prime_nette,fga,taxes,accessories,prime_ttc",
+    )
+    .order("effective_date", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as PolicyRow[]).map((r) => ({
+    id: r.id,
+    commercialId: r.commercial_id,
+    produitId: r.product_id,
+    clientName: r.client_name,
+    reference: r.reference,
+    dateEffet: r.effective_date,
+    dateExpiration: r.expiry_date,
+    primeNette: Number(r.prime_nette),
+    fga: Number(r.fga),
+    taxes: Number(r.taxes),
+    accessoires: Number(r.accessories),
+    primeTtc: Number(r.prime_ttc),
+  }));
+}
+
 export interface PayrollRaw {
   products: PayrollProduct[];
   contracts: PayrollContract[];
   payments: VersementInput[];
+  policies: PayrollPolicy[];
   commercials: User[];
   agreements: CommissionAgreement[];
   plans: RemunerationPlanEntry[];
@@ -183,16 +265,49 @@ export interface PayrollRaw {
 
 /** Loads every row the current user may see (RLS scopes them) — once. */
 export async function fetchPayrollRaw(current: User): Promise<PayrollRaw> {
-  const [products, contracts, payments, commercials, agreements, plans] =
+  const [products, contracts, payments, policies, commercials, agreements, plans] =
     await Promise.all([
       fetchPayrollProducts(),
       fetchPayrollContracts(),
       fetchPayrollPayments(),
+      fetchPayrollPolicies(),
       fetchAssignableCommercials(current),
       fetchCommissionAgreements(),
       fetchRemunerationPlans(),
     ]);
-  return { products, contracts, payments, commercials, agreements, plans };
+  return {
+    products,
+    contracts,
+    payments,
+    policies,
+    commercials,
+    agreements,
+    plans,
+  };
+}
+
+/**
+ * Prices every IARD policy with the rates in force at its effective date.
+ * Throws a Missing*Error when a policy has no agreement/plan (never a silent 0).
+ */
+export function evaluatePolicies(raw: PayrollRaw): PolicyEvaluated[] {
+  const productById = new Map(raw.products.map((p) => [p.id, p]));
+  return raw.policies.map((policy) => {
+    const product = productById.get(policy.produitId);
+    if (!product) {
+      throw new Error(`Produit introuvable pour la police ${policy.id}.`);
+    }
+    return evaluatePolicy(
+      policy,
+      {
+        insurerId: product.insurerId,
+        productId: product.id,
+        productType: product.productType,
+      },
+      raw.agreements,
+      raw.plans,
+    );
+  });
 }
 
 /** Builds the per-period plan / cabinet-rate resolver from the loaded rows. */
@@ -231,6 +346,7 @@ export function computePayrollLines(
 ): PayrollLine[] {
   const { plan, planOf, tauxCabinet, tauxRetrocession } =
     ratesResolverFor(raw)(period);
+  const polices = evaluatePolicies(raw);
   return raw.commercials.map((commercial) => ({
     ...calculerRemuneration({
       commercialId: commercial.id,
@@ -242,6 +358,7 @@ export function computePayrollLines(
       planOf,
       tauxCabinet,
       tauxRetrocession,
+      polices,
     }),
     commercial,
   }));
@@ -258,6 +375,9 @@ export async function fetchPayrollSnapshot(
     contracts: raw.contracts,
     payments: raw.payments,
     lines: computePayrollLines(raw, period),
+    policies: raw.policies,
+    agreements: raw.agreements,
+    plans: raw.plans,
     plan,
     cabinetRates: Object.fromEntries(
       raw.contracts.map((c) => [c.id, tauxCabinet(c.id)]),
@@ -283,6 +403,7 @@ export async function fetchProfitability(
     contrats: raw.contracts,
     versements: raw.payments,
     produits: raw.products,
+    polices: evaluatePolicies(raw),
     ratesFor: ratesResolverFor(raw),
   };
   const latest = periods[periods.length - 1];
@@ -334,11 +455,33 @@ export async function createPayrollPayment(
   if (error) throw error;
 }
 
+/** Records an IARD policy (manager/admin on their scope — enforced by RLS). */
+export async function createPayrollPolicy(
+  input: NewPayrollPolicy,
+): Promise<void> {
+  const { error } = await createClient().from("payroll_policies").insert({
+    commercial_id: input.commercialId,
+    product_id: input.productId,
+    client_name: input.clientName,
+    reference: input.reference,
+    effective_date: input.effectiveDate,
+    expiry_date: input.expiryDate,
+    prime_nette: input.primeNette,
+    fga: input.fga,
+    taxes: input.taxes,
+    accessories: input.accessories,
+    prime_ttc: input.primeTtc,
+    created_by: input.createdBy,
+  });
+  if (error) throw error;
+}
+
 export interface NewPayrollProduct {
   insurerId: string;
   label: string;
   productType: ProductType;
   segment: ProductSegment;
+  commissionMode: CommissionMode;
   assietteType: ProduitInput["assietteType"];
   frequence: ProduitInput["frequenceCotisation"];
   defaultSubscription: number;
@@ -365,6 +508,7 @@ export async function createPayrollProduct(
     insurer_id: input.insurerId,
     product_type: input.productType,
     segment: input.segment,
+    commission_mode: input.commissionMode,
     assiette_type: input.assietteType,
     frequency: input.frequence,
     default_subscription: input.defaultSubscription,

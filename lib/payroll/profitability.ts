@@ -19,12 +19,15 @@ import {
   type VersementInput,
 } from "@/lib/payroll/engine";
 import type { PeriodRates } from "@/lib/payroll/rates";
+import type { PolicyEvaluated } from "@/lib/payroll/policies";
 
 export interface ProfitabilityInput {
   commercialIds: string[];
   contrats: ContratInput[];
   versements: VersementInput[];
   produits: ProduitInput[];
+  /** IARD policies already priced; each is commissioned once, in its effective month. */
+  polices?: PolicyEvaluated[];
   /** Resolves the plan and cabinet rates in force for a period. */
   ratesFor: (periode: string) => PeriodRates;
 }
@@ -89,7 +92,7 @@ export function computeProfitability(
   input: ProfitabilityInput,
   periodes: string[],
 ): ProfitabilityPoint[] {
-  const { commercialIds, contrats, versements, produits } = input;
+  const { commercialIds, contrats, versements, produits, polices } = input;
   const ids = new Set(commercialIds);
   const contratsEquipe = contrats.filter((c) => ids.has(c.commercialId));
 
@@ -106,8 +109,14 @@ export function computeProfitability(
         planOf,
         tauxCabinet,
         tauxRetrocession,
+        polices,
       }),
     );
+    // A policy is commissioned once, in its effective month; it always pays
+    // its commercial that month, so it counts as in-scope commission.
+    const commissionPolices = (polices ?? [])
+      .filter((p) => p.periode === periode && ids.has(p.commercialId))
+      .reduce((sum, p) => sum + p.commissionCabinet, 0);
     const eligibles = new Set(
       lignes.flatMap((l) =>
         l.contrats.filter((c) => c.eligible).map((c) => c.contratId),
@@ -126,6 +135,8 @@ export function computeProfitability(
       else commissionHorsPerimetre += commission;
     }
 
+    commissionPerimetre += commissionPolices;
+
     const depensesPaie = lignes.reduce((s, l) => s + l.total, 0);
     const commissionCabinet = commissionPerimetre + commissionHorsPerimetre;
 
@@ -138,7 +149,7 @@ export function computeProfitability(
       baseFixe: lignes.reduce((s, l) => s + l.baseFixe, 0),
       primePerformance: lignes.reduce((s, l) => s + l.primePerformance, 0),
       commissionAcquisition: lignes.reduce(
-        (s, l) => s + l.commissionAcquisitionTotale,
+        (s, l) => s + l.commissionAcquisitionTotale + l.commissionPolices,
         0,
       ),
       depensesPaie,
@@ -152,7 +163,7 @@ export function computeCommercialProfitability(
   input: ProfitabilityInput,
   periode: string,
 ): CommercialProfitability[] {
-  const { commercialIds, contrats, versements, produits } = input;
+  const { commercialIds, contrats, versements, produits, polices } = input;
   const { plan, planOf, tauxCabinet, tauxRetrocession } = input.ratesFor(periode);
 
   return commercialIds.map((commercialId) => {
@@ -167,10 +178,13 @@ export function computeCommercialProfitability(
       planOf,
       tauxCabinet,
       tauxRetrocession,
+      polices,
     }).total;
 
     let encaisse = 0;
-    let commissionCabinet = 0;
+    let commissionCabinet = (polices ?? [])
+      .filter((p) => p.periode === periode && p.commercialId === commercialId)
+      .reduce((sum, p) => sum + p.commissionCabinet, 0);
     for (const contrat of siens) {
       const montant = encaisseContrat(periode, contrat.id, versements);
       encaisse += montant;

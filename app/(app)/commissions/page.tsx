@@ -28,6 +28,7 @@ import {
 } from "@/components/commissions/agreement-dialog";
 import { PlanDialog } from "@/components/commissions/plan-dialog";
 import {
+  MODE_LABELS,
   ProductDialog,
   SEGMENT_LABELS,
 } from "@/components/commissions/product-dialog";
@@ -173,6 +174,7 @@ export default function CommissionsPage() {
                 <TableHead className="text-right">Taux</TableHead>
                 <TableHead className="text-right">Rétrocession</TableHead>
                 <TableHead>Calculé sur</TableHead>
+                <TableHead className="text-right">Accessoires</TableHead>
                 <TableHead>En vigueur dès</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Note</TableHead>
@@ -203,6 +205,9 @@ export default function CommissionsPage() {
                       : formatRate(a.retrocessionRate)}
                   </TableCell>
                   <TableCell>{BASE_LABELS[a.base]}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {a.accessoryShare > 0 ? formatRate(a.accessoryShare) : "—"}
+                  </TableCell>
                   <TableCell>{fullDate(`${a.effectiveFrom}T12:00:00`)}</TableCell>
                   <TableCell>
                     <StatusBadge status={agreementStatus.get(a.id) ?? "past"} />
@@ -230,6 +235,7 @@ export default function CommissionsPage() {
                 <TableHead>Compagnie</TableHead>
                 <TableHead>Segment</TableHead>
                 <TableHead>Ligne</TableHead>
+                <TableHead>Commission</TableHead>
                 <TableHead>Assiette</TableHead>
                 <TableHead>Cotisation</TableHead>
               </TableRow>
@@ -241,6 +247,7 @@ export default function CommissionsPage() {
                   <TableCell>{insurerName.get(p.insurerId) ?? p.insurerId}</TableCell>
                   <TableCell>{SEGMENT_LABELS[p.segment]}</TableCell>
                   <TableCell>{PRODUCT_LABELS[p.productType]}</TableCell>
+                  <TableCell>{MODE_LABELS[p.commissionMode]}</TableCell>
                   <TableCell>
                     {p.assietteType === "VARIABLE" ? "Variable" : "Figée"}
                   </TableCell>

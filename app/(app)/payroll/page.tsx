@@ -16,6 +16,8 @@ import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { PayrollExplainer } from "@/components/payroll/payroll-explainer";
 import { ContractDialog } from "@/components/payroll/contract-dialog";
+import { PolicyDialog } from "@/components/payroll/policy-dialog";
+import { PoliciesTable } from "@/components/payroll/policies-table";
 import { PaymentDialog } from "@/components/payroll/payment-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -67,6 +69,16 @@ export default function PayrollPage() {
   }, [user, period]);
 
   const lines = snapshot?.lines ?? [];
+  const perPolicyProducts = (snapshot?.products ?? []).filter(
+    (p) => p.commissionMode === "per_policy",
+  );
+  const perPaymentProducts = (snapshot?.products ?? []).filter(
+    (p) => p.commissionMode === "per_payment",
+  );
+  const monthPolicies = (snapshot?.policies ?? []).filter(
+    (p) => p.dateEffet.slice(0, 7) === period,
+  );
+  const monthEvaluated = lines.flatMap((l) => l.polices);
   const totalPay = lines.reduce((s, l) => s + l.total, 0);
   const totalProduction = lines.reduce((s, l) => s + l.production, 0);
   const belowTarget = lines.filter(
@@ -89,9 +101,17 @@ export default function PayrollPage() {
                   userId={user.id}
                   onCreated={load}
                 />
+                <PolicyDialog
+                  commercials={lines.map((l) => l.commercial)}
+                  products={perPolicyProducts}
+                  agreements={snapshot.agreements}
+                  plans={snapshot.plans}
+                  userId={user.id}
+                  onCreated={load}
+                />
                 <ContractDialog
                   commercials={lines.map((l) => l.commercial)}
-                  products={snapshot.products}
+                  products={perPaymentProducts}
                   onCreated={load}
                 />
               </>
@@ -131,8 +151,17 @@ export default function PayrollPage() {
           <PayrollTable
             lines={lines}
             contracts={snapshot.contracts}
+            policies={snapshot.policies}
             plan={snapshot.plan}
           />
+          {monthPolicies.length > 0 && (
+            <PoliciesTable
+              policies={monthPolicies}
+              evaluated={monthEvaluated}
+              products={snapshot.products}
+              commercials={lines.map((l) => l.commercial)}
+            />
+          )}
         </>
       ) : (
         <>
@@ -166,8 +195,17 @@ export default function PayrollPage() {
           <PayrollTable
             lines={lines}
             contracts={snapshot.contracts}
+            policies={snapshot.policies}
             plan={snapshot.plan}
           />
+          {monthPolicies.length > 0 && (
+            <PoliciesTable
+              policies={monthPolicies}
+              evaluated={monthEvaluated}
+              products={snapshot.products}
+              commercials={lines.map((l) => l.commercial)}
+            />
+          )}
         </>
       )}
     </div>

@@ -16,6 +16,7 @@ interface AgreementRow {
   retrocession_rate: number | null;
   rate: number;
   base: CommissionBase;
+  accessory_share: number;
   effective_from: string;
   note: string | null;
 }
@@ -31,7 +32,7 @@ interface PlanRow {
 }
 
 const AGREEMENT_COLS =
-  "id,insurer_id,product_id,product_type,rate,retrocession_rate,base,effective_from,note";
+  "id,insurer_id,product_id,product_type,rate,retrocession_rate,base,accessory_share,effective_from,note";
 const PLAN_COLS =
   "id,base_fixe,performance_rate,retrocession_rate,duration_months,effective_from,note";
 
@@ -52,6 +53,7 @@ export async function fetchCommissionAgreements(): Promise<CommissionAgreement[]
     retrocessionRate: r.retrocession_rate === null ? null : Number(r.retrocession_rate),
     rate: Number(r.rate),
     base: r.base,
+    accessoryShare: Number(r.accessory_share),
     effectiveFrom: r.effective_from,
     note: r.note ?? undefined,
   }));
@@ -84,6 +86,8 @@ export interface NewCommissionAgreement {
   retrocessionRate: number | null;
   rate: number;
   base: CommissionBase;
+  /** Share of a policy's accessories kept by the cabinet, 0..1. */
+  accessoryShare: number;
   effectiveFrom: string;
   note?: string;
   createdBy: string;
@@ -99,6 +103,7 @@ export async function createCommissionAgreement(
     retrocession_rate: input.retrocessionRate,
     rate: input.rate,
     base: input.base,
+    accessory_share: input.accessoryShare,
     effective_from: input.effectiveFrom,
     note: input.note ?? null,
     created_by: input.createdBy,
