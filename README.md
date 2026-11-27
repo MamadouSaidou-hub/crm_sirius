@@ -22,8 +22,14 @@ Les scripts SQL à exécuter dans le SQL Editor sont décrits dans [supabase/REA
 (ordre : `01` à `05`, puis `06_payroll.sql` pour la paie des commerciaux, `07_commission_agreements.sql`
 pour les taux datés, `08_product_catalog.sql` pour le catalogue de produits et les taux par produit,
 puis `09_iard_policies.sql` pour les polices IARD : commission par police, part des accessoires par convention,
-`10_roles.sql` pour les rôles `super_admin` et `gestionnaire`, puis `11_security.sql` pour le journal d'audit
-et le verrou des profils).
+`10_roles.sql` pour les rôles `super_admin` et `gestionnaire`, `11_security.sql` pour le journal d'audit
+et le verrou des profils, puis `12_payroll_closing.sql` pour la clôture mensuelle de la paie).
+
+## Clôture mensuelle
+
+Un mois terminé peut être clôturé (admin / DG) depuis la page Paie : ses totaux sont figés et la base refuse
+ensuite toute création, modification ou suppression de contrat, versement ou police dans ce mois. Seul le
+super admin peut rouvrir un mois. Clôture et réouverture sont tracées dans `audit_log`.
 
 ## Sécurité
 

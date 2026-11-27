@@ -1,11 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Banknote, Download, Landmark, Scale, Target, Users } from "lucide-react";
+import { Banknote, Download, Landmark, Lock, Scale, Target, TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { buildPayrollCsv } from "@/lib/payroll/export";
 import { downloadTextFile } from "@/lib/download";
 import { useMockUser } from "@/lib/mock-auth";
+import type { User } from "@/lib/types";
+import { isAdminLevel } from "@/lib/permissions";
+import {
+  fetchClosedPeriods,
+  fetchClosing,
+  type PayrollClosing,
+} from "@/lib/data/closings";
+import { driftOf, isClosable, monthName } from "@/lib/payroll/closing";
 import { MissingAgreementError, MissingPlanError } from "@/lib/payroll/rates";
 import { CURRENT_PERIOD } from "@/lib/data/performance";
 import { fetchPayrollSnapshot, type PayrollSnapshot } from "@/lib/data/payroll";
@@ -19,9 +27,11 @@ import { ObjectiveProgress } from "@/components/performance/objective-progress";
 import { PayrollTable } from "@/components/payroll/payroll-table";
 import { PayrollExplainer } from "@/components/payroll/payroll-explainer";
 import { NewMenu } from "@/components/payroll/new-menu";
+import { ClosingControls } from "@/components/payroll/closing-controls";
 import { PoliciesTable } from "@/components/payroll/policies-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 /** Missing agreement/plan errors are actionable for the admin: show them as-is. */
 function describeLoadError(error: unknown): string {
@@ -31,10 +41,32 @@ function describeLoadError(error: unknown): string {
   return "Impossible de charger la paie.";
 }
 
+interface ClosingState {
+  closed: boolean;
+  /** Frozen totals; only visible to those who see the whole payroll. */
+  detail: PayrollClosing | null;
+}
+
+/** The month's payroll and its closing status, loaded together. */
+async function loadMonth(user: User, period: string) {
+  const [snapshot, closedPeriods, detail] = await Promise.all([
+    fetchPayrollSnapshot(user, period),
+    // Degrade gracefully while the closing migration is not applied.
+    fetchClosedPeriods().catch(() => [] as string[]),
+    fetchClosing(period).catch(() => null),
+  ]);
+  const closing: ClosingState = {
+    closed: closedPeriods.includes(period),
+    detail,
+  };
+  return { snapshot, closing };
+}
+
 export default function PayrollPage() {
   const { user } = useMockUser();
   const [period, setPeriod] = useState(CURRENT_PERIOD);
   const [snapshot, setSnapshot] = useState<PayrollSnapshot | null>(null);
+  const [closing, setClosing] = useState<ClosingState>({ closed: false, detail: null });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -42,7 +74,9 @@ export default function PayrollPage() {
 
   const load = useCallback(async () => {
     try {
-      setSnapshot(await fetchPayrollSnapshot(user, period));
+      const data = await loadMonth(user, period);
+      setSnapshot(data.snapshot);
+      setClosing(data.closing);
       setLoadError(null);
     } catch (error) {
       setLoadError(describeLoadError(error));
@@ -53,10 +87,11 @@ export default function PayrollPage() {
 
   useEffect(() => {
     let active = true;
-    fetchPayrollSnapshot(user, period)
+    loadMonth(user, period)
       .then((data) => {
         if (!active) return;
-        setSnapshot(data);
+        setSnapshot(data.snapshot);
+        setClosing(data.closing);
         setLoadError(null);
       })
       .catch((error: unknown) => {
@@ -108,6 +143,25 @@ export default function PayrollPage() {
         actions={
           <>
             <PeriodSelector value={period} onChange={setPeriod} />
+            {closing.closed && (
+              <Badge variant="success" className="gap-1">
+                <Lock className="h-3 w-3" />
+                Clôturé
+              </Badge>
+            )}
+            {canWrite && snapshot && lines.length > 0 && (
+              <ClosingControls
+                period={period}
+                closed={closing.closed}
+                closable={isClosable(period, new Date())}
+                canClose={isAdminLevel(user.role)}
+                canReopen={user.role === "super_admin"}
+                closerName={user.name}
+                lines={lines}
+                totalCabinetCommission={snapshot.profitability.commissionCabinet}
+                onChanged={load}
+              />
+            )}
             {canWrite && snapshot && lines.length > 0 && (
               <Button size="sm" variant="outline" onClick={exportMonth}>
                 <Download className="h-4 w-4" />
@@ -119,6 +173,7 @@ export default function PayrollPage() {
                 snapshot={snapshot}
                 commercials={lines.map((l) => l.commercial)}
                 period={period}
+                periodClosed={closing.closed}
                 userId={user.id}
                 onCreated={load}
               />
@@ -132,6 +187,32 @@ export default function PayrollPage() {
           plan={snapshot.plan}
           cabinetRates={[...new Set(Object.values(snapshot.cabinetRates))]}
         />
+      )}
+
+      {closing.closed && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-sirius-success/30 bg-sirius-success/10 p-3 text-sm">
+          <Lock className="h-4 w-4 shrink-0 text-sirius-success" />
+          <span>
+            <strong className="capitalize">{monthName(period)}</strong> est
+            clôturé
+            {closing.detail
+              ? ` le ${new Date(closing.detail.closedAt).toLocaleDateString("fr-FR")} par ${closing.detail.closedByName ?? "—"}`
+              : ""}{" "}
+            : les montants sont figés.
+            {closing.detail?.note ? ` — ${closing.detail.note}` : ""}
+          </span>
+        </div>
+      )}
+
+      {closing.detail && driftOf(closing.detail.totalPay, totalPay) !== 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-sirius-danger/40 bg-sirius-danger/10 p-3 text-sm text-sirius-danger">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Les montants calculés ({formatFCFA(totalPay)}) ne correspondent plus
+            aux montants figés à la clôture ({formatFCFA(closing.detail.totalPay)}).
+            Contactez le super administrateur avant tout paiement.
+          </span>
+        </div>
       )}
 
       {loadError && (

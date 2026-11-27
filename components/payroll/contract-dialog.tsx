@@ -10,6 +10,7 @@ import {
   createPayrollContract,
   type PayrollProduct,
 } from "@/lib/data/payroll";
+import { writeErrorMessage } from "@/lib/data/errors";
 import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,8 +107,10 @@ export function ContractDialog({
       toast.success("Contrat enregistré");
       setOpen(false);
       onCreated();
-    } catch {
-      toast.error("Création impossible. Vérifiez vos droits et réessayez.");
+    } catch (error) {
+      toast.error(
+        writeErrorMessage(error, "Création impossible. Vérifiez vos droits et réessayez."),
+      );
     } finally {
       setSaving(false);
     }

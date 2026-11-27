@@ -21,6 +21,8 @@ interface NewMenuProps {
   snapshot: PayrollSnapshot;
   commercials: User[];
   period: string;
+  /** The displayed month is closed: payments for it are refused. */
+  periodClosed: boolean;
   userId: string;
   onCreated: () => void;
 }
@@ -30,6 +32,7 @@ export function NewMenu({
   snapshot,
   commercials,
   period,
+  periodClosed,
   userId,
   onCreated,
 }: NewMenuProps) {
@@ -56,9 +59,12 @@ export function NewMenu({
             <FilePlus2 className="mr-2 h-4 w-4" />
             Contrat vie / retraite
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setEntry("payment")}>
+          <DropdownMenuItem
+            disabled={periodClosed}
+            onSelect={() => setEntry("payment")}
+          >
             <Wallet className="mr-2 h-4 w-4" />
-            Versement
+            {periodClosed ? "Versement (mois clôturé)" : "Versement"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

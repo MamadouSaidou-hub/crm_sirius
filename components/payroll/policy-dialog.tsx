@@ -18,6 +18,7 @@ import type {
 } from "@/lib/payroll/rates";
 import { formatFCFA } from "@/lib/utils";
 import { formatRate } from "@/components/payroll/payroll-explainer";
+import { writeErrorMessage } from "@/lib/data/errors";
 import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,8 +221,10 @@ export function PolicyDialog({
       setOpen(false);
       reset();
       onCreated();
-    } catch {
-      toast.error("Création impossible. Vérifiez vos droits et réessayez.");
+    } catch (error) {
+      toast.error(
+        writeErrorMessage(error, "Création impossible. Vérifiez vos droits et réessayez."),
+      );
     } finally {
       setSaving(false);
     }

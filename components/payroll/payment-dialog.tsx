@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import type { PayrollContract } from "@/lib/data/payroll";
 import { createPayrollPayment } from "@/lib/data/payroll";
+import { writeErrorMessage } from "@/lib/data/errors";
 import { useDialogState } from "@/components/payroll/use-dialog-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,8 +79,10 @@ export function PaymentDialog({
       setAmount("");
       setOpen(false);
       onCreated();
-    } catch {
-      toast.error("Enregistrement impossible. Vérifiez vos droits.");
+    } catch (error) {
+      toast.error(
+        writeErrorMessage(error, "Enregistrement impossible. Vérifiez vos droits."),
+      );
     } finally {
       setSaving(false);
     }
